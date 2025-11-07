@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-MiniLLM Training Script - Updated Data Loader
-Requirements: pip install torch requests datasets
+MiniLLM Training Script - Colab Optimized
+Requirements: pip install torch datasets
 """
 
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
-import requests
-from pathlib import Path
 import json
-import warnings
+from pathlib import Path
 
 # ==================== Configuration ====================
 
@@ -175,117 +173,70 @@ class TextDataset(Dataset):
         y = self.data[idx + 1:idx + self.context_length + 1]
         return x, y
 
-# ==================== Data Loading (Fixed) ====================
+# ==================== Data Loading (Colab-Friendly) ====================
 
-def download_tinystories(cache_dir, data_limit):
-    """Download TinyStories dataset with fallback options"""
+def prepare_data(cache_dir, data_limit):
+    """Prepare data using Hugging Face datasets library (most reliable)"""
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(exist_ok=True)
-    data_path = cache_dir / "tinystories_train.txt"
     
-    if data_path.exists():
-        print(f"Found cached dataset at {data_path}")
-        return data_path
+    data_path = cache_dir / "tinystories.txt"
+    tokenizer_path = cache_dir / "tokenizer.json"
     
-    # Method 1: Try direct download from Hugging Face (primary)
+    # Use this cell in Colab to install required packages:
+    # !pip install datasets
+    
     try:
-        print("Downloading TinyStories dataset (Method 1: Direct)...")
-        # Hugging Face raw file URL (updated 2025)
-        url = "https://huggingface.co/datasets/roneneldan/TinyStories/raw/main/TinyStories-train.txt"
-        
-        response = requests.get(url, stream=True, timeout=30)
-        response.raise_for_status()
-        
-        # Save with progress bar
-        with open(data_path, 'w', encoding='utf-8') as f:
-            downloaded = 0
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    text_chunk = chunk.decode('utf-8')
-                    f.write(text_chunk)
-                    downloaded += len(text_chunk)
-                    if downloaded >= data_limit:
-                        break
-                    print(f"\rDownloading... {downloaded/1e6:.1f}MB", end='')
-        
-        print(f"\nDataset downloaded successfully ({data_path.stat().st_size/1e6:.1f} MB)")
-        return data_path
-        
-    except Exception as e:
-        print(f"\nMethod 1 failed: {e}")
-    
-    # Method 2: Try alternative Hugging Face URL
-    try:
-        print("Trying alternative download method...")
-        url = "https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStories-train.txt"
-        
-        response = requests.get(url, stream=True, timeout=30)
-        response.raise_for_status()
-        
-        with open(data_path, 'w', encoding='utf-8') as f:
-            downloaded = 0
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    text_chunk = chunk.decode('utf-8')
-                    f.write(text_chunk)
-                    downloaded += len(text_chunk)
-                    if downloaded >= data_limit:
-                        break
-                    print(f"\rDownloading... {downloaded/1e6:.1f}MB", end='')
-        
-        print(f"\nDataset downloaded successfully ({data_path.stat().st_size/1e6:.1f} MB)")
-        return data_path
-        
-    except Exception as e:
-        print(f"\nMethod 2 failed: {e}")
-    
-    # Method 3: Use Hugging Face datasets library (most reliable)
-    try:
-        print("Trying Hugging Face datasets library...")
+        print("Loading TinyStories dataset via Hugging Face...")
         from datasets import load_dataset
         
+        # Load dataset (cached automatically by HF)
         dataset = load_dataset("roneneldan/TinyStories", split="train")
         
-        # Convert to text and save
-        text = '\n'.join(dataset['text'][:data_limit//100])  # Approximate limit
+        # Convert to text and limit size
+        print(f"Dataset loaded. Total examples: {len(dataset)}")
+        
+        # Take subset to avoid memory issues
+        max_examples = data_limit // 500  # ~500 chars per example
+        text = '\n'.join(dataset['text'][:max_examples])
+        
+        print(f"Using {len(text)/1e6:.1f}MB of text")
+        
+        # Save processed data
         with open(data_path, 'w', encoding='utf-8') as f:
             f.write(text)
         
-        print(f"Dataset loaded via HF datasets ({data_path.stat().st_size/1e6:.1f} MB)")
-        return data_path
+    except ImportError:
+        print("⚠️  Hugging Face datasets not found. Install with: pip install datasets")
+        print("⚠️  Falling back to synthetic data...")
         
-    except Exception as e:
-        print(f"\nMethod 3 failed: {e}")
-    
-    # Final fallback: Create synthetic data
-    print("\n⚠️  All download methods failed. Creating synthetic training data...")
-    synthetic_text = """
-Once upon a time, there was a little boy named Tim. Tim loved to play with his red ball.
+        # Create synthetic stories
+        synthetic_text = """Once upon a time, there was a little boy named Tim. Tim loved to play with his red ball.
 One day, Tim lost his ball in the garden. He looked everywhere but could not find it.
 Then, he saw his dog Max playing with the ball. Max was happy and wagged his tail.
 Tim laughed and said, "Max, you found my ball!" They played together all day.
-The sun went down and Tim went home with Max. They were very happy.
 
-Another story about a girl named Lily. Lily liked to draw pictures.
-She drew a big house with a tree and a flower. Her mom said, "Great job, Lily!"
-Lily smiled and put the picture on the wall. She felt proud and happy.
-""" * 100  # Repeat to create enough data
-    
-    with open(data_path, 'w', encoding='utf-8') as f:
-        f.write(synthetic_text)
-    
-    print(f"⚠️  Synthetic data created at {data_path}")
-    return data_path
+Lily was a girl who liked to draw. She drew a big house with a tree and a flower.
+Her mom said, "Great job, Lily!" Lily smiled and put the picture on the wall.
 
-def prepare_data(cache_dir, data_limit):
-    """Prepare data with robust downloading"""
-    cache_dir = Path(cache_dir)
-    cache_dir.mkdir(exist_ok=True)
+The cat chased the mouse around the house. The mouse was fast and clever.
+It hid in a small hole where the cat could not reach. The cat was sad and meowed.
+
+Tom and his friend went to the park. They played on the swings and the slide.
+They had a picnic with sandwiches and juice. The sun was shining bright.
+""" * 200  # Repeat to create enough data
+        
+        with open(data_path, 'w', encoding='utf-8') as f:
+            f.write(synthetic_text)
+        
+        print(f"Synthetic data created: {data_path}")
     
-    # Download data
-    data_path = download_tinystories(cache_dir, data_limit)
+    except Exception as e:
+        print(f"Error loading dataset: {e}")
+        print("Check your internet connection and Hugging Face access.")
+        raise
     
-    # Load and verify
+    # Verify data
     with open(data_path, 'r', encoding='utf-8') as f:
         text = f.read()
     
@@ -293,7 +244,6 @@ def prepare_data(cache_dir, data_limit):
         raise ValueError("Dataset appears to be corrupted or empty!")
     
     # Create tokenizer
-    tokenizer_path = cache_dir / "tokenizer.json"
     if tokenizer_path.exists():
         tokenizer = SimpleTokenizer.load(tokenizer_path)
     else:
@@ -325,12 +275,7 @@ def run_training(config=None):
     print(f"Cache directory: {cache_dir}")
     
     # Prepare data
-    try:
-        tokenizer, train_data, val_data = prepare_data(cfg['cache_dir'], cfg['data_limit'])
-    except Exception as e:
-        print(f"Data preparation failed: {e}")
-        print("Install Hugging Face datasets: pip install datasets")
-        return None, None
+    tokenizer, train_data, val_data = prepare_data(cfg['cache_dir'], cfg['data_limit'])
     
     print(f"Vocab size: {tokenizer.vocab_size:,}")
     print(f"Train tokens: {len(train_data):,}")
@@ -423,6 +368,9 @@ def run_training(config=None):
 # ==================== Main Execution ====================
 
 if __name__ == "__main__":
+    # Run this in Colab first:
+    # !pip install datasets
+    
     # Quick demo configuration
     demo_config = {
         'n_embeddings': 256,  # Smaller for faster demo
