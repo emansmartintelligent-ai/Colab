@@ -3,37 +3,396 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand-Controlled Depth Map Viewer</title>
+    <title>Neon Depth Cloud Viewer</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; color: white; }
-        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        
-        #ui-layer {
-            position: absolute; top: 10px; left: 10px; z-index: 10;
-            background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px;
-            width: 300px;
+        :root {
+            --neon-cyan: #03e9f4;
+            --neon-purple: #b026ff;
+            --bg-dark: #050a14;
+            --panel-bg: rgba(10, 20, 40, 0.7);
         }
 
-        h2 { margin: 0 0 10px 0; font-size: 1.2rem; }
-        p { font-size: 0.8rem; color: #ccc; }
-        
-        .input-group { margin-bottom: 10px; }
-        label { display: block; font-size: 0.8rem; margin-bottom: 5px; }
-        input[type="file"] { width: 100%; font-size: 0.8rem; }
-        
-        button {
-            width: 100%; padding: 10px; background: #007bff; color: white; 
-            border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+        body { 
+            margin: 0; overflow: hidden; 
+            background-color: var(--bg-dark); 
+            background-image: radial-gradient(circle at center, #1a2a4a 0%, #050a14 70%);
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            color: white; 
         }
-        button:hover { background: #0056b3; }
-        button:disabled { background: #555; cursor: not-allowed; }
+
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* Scanline overlay effect */
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px);
+        }
+
+        #ui-layer {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            padding: 25px; 
+            border-radius: 15px; border: 1px solid rgba(3, 233, 244, 0.3);
+            box-shadow: 0 0 20px rgba(3, 233, 244, 0.2);
+            width: 320px;
+        }
+
+        h2 { 
+            margin: 0 0 15px 0; font-size: 1.4rem; text-transform: uppercase; letter-spacing: 2px;
+            color: var(--neon-cyan); text-shadow: 0 0 10px rgba(3, 233, 244, 0.7);
+        }
+        p.sub-text { font-size: 0.8rem; color: #aabce6; margin-bottom: 20px; }
+        
+        /* Hiding standard file inputs */
+        .hidden-input { display: none; }
+
+        /* Futuristic File Input Panels */
+        .neon-file-label {
+            display: block; padding: 12px; margin-bottom: 15px;
+            background: rgba(0,0,0,0.5); border: 1px solid var(--neon-purple);
+            color: var(--neon-purple); text-transform: uppercase; font-size: 0.8rem; font-weight: bold;
+            text-align: center; cursor: pointer; transition: all 0.3s ease;
+            box-shadow: inset 0 0 10px rgba(176, 38, 255, 0.2);
+            position: relative; overflow: hidden;
+        }
+        
+        .neon-file-label:hover {
+            background: rgba(176, 38, 255, 0.2);
+            box-shadow: 0 0 15px rgba(176, 38, 255, 0.6);
+            color: white;
+        }
+        
+        .file-status { display: block; font-size: 0.7rem; color: #fff; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+
+        /* The Main Neon Glow Button */
+        .neon-button {
+            position: relative; width: 100%; padding: 15px 20px;
+            font-size: 1rem; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;
+            color: var(--neon-cyan); background: transparent; border: none; cursor: pointer;
+            overflow: hidden; transition: 0.2s;
+        }
+
+        .neon-button:disabled { opacity: 0.5; cursor: not-allowed; color: #555; }
+
+        .neon-button span { position: relative; z-index: 1; }
+
+        /* The glowing borders and background elements */
+        .neon-button::before, .neon-button::after { content: ''; position: absolute; }
+        
+        /* Base glowing box */
+        .neon-button::before {
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--neon-cyan); opacity: 0.1;
+            box-shadow: 0 0 5px var(--neon-cyan), 0 0 25px var(--neon-cyan), 0 0 50px var(--neon-cyan), 0 0 100px var(--neon-cyan);
+            transition: opacity 0.5s;
+        }
+
+        /* The actual border lines */
+        .btn-border-top { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); }
+        .btn-border-bottom { position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); }
+
+        .neon-button:hover:not(:disabled) {
+            color: #fff; background: var(--neon-cyan); box-shadow: 0 0 20px var(--neon-cyan);
+        }
+        .neon-button:hover:not(:disabled)::before { opacity: 1; }
+
+        #loading { display: none; color: var(--neon-cyan); font-weight: bold; margin-top: 15px; text-align: center; text-shadow: 0 0 5px var(--neon-cyan);}
+
+        #webcam-preview {
+            position: absolute; bottom: 20px; right: 20px; z-index: 10;
+            width: 180px; height: 135px; 
+            border: 2px solid var(--neon-purple); box-shadow: 0 0 15px var(--neon-purple);
+            border-radius: 10px; transform: scaleX(-1); background: black;
+        }
+
+        .status-container {
+            display: flex; align-items: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .status-dot {
+            height: 12px; width: 12px; background-color: #333; border-radius: 50%;
+            display: inline-block; margin-right: 10px; box-shadow: inset 0 0 5px #000;
+        }
+        .status-active { background-color: #0f0; box-shadow: 0 0 10px #0f0, inset 0 0 5px #afa; }
+        .instructions { font-size: 0.75rem; margin-top:10px; color:#aabce6; line-height: 1.4;}
+        .highlight { color: var(--neon-cyan); font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+
+    <div id="ui-layer">
+        <h2>Depth Core // 3D</h2>
+        <p class="sub-text">Initialize neural link. Upload data maps.</p>
+        
+        <label class="neon-file-label" for="colorInput">
+            [ SELECT COLOR SOURCE ]
+            <span id="colorFileName" class="file-status">No file selected</span>
+        </label>
+        <input type="file" id="colorInput" accept="image/*" class="hidden-input">
+
+        <label class="neon-file-label" for="depthInput" style="border-color: var(--neon-cyan); color: var(--neon-cyan);">
+            [ SELECT DEPTH MAP ]
+            <span id="depthFileName" class="file-status">No file selected</span>
+        </label>
+        <input type="file" id="depthInput" accept="image/*" class="hidden-input">
+
+        <button id="generateBtn" class="neon-button" disabled>
+            <div class="btn-border-top"></div>
+            <span>ENGAGE SYSTEM</span>
+            <div class="btn-border-bottom"></div>
+        </button>
+        
+        <div id="loading">PROCESSING DATA STREAM...</div>
+
+        <div class="status-container">
+            <span id="handStatus" class="status-dot"></span>
+            <span style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">Manual Override Status</span>
+        </div>
+        <p class="instructions">
+            > Move hand <span class="highlight">L/R/U/D</span> to Rotate axis.<br>
+            > Move hand <span class="highlight">Close/Far</span> to Zoom proximity.
+        </p>
+    </div>
+
+    <video id="input_video" style="display:none"></video>
+    <canvas id="webcam-preview"></canvas>
+
+    <div id="canvas-container"></div>
+
+<script>
+    // --- 0. UI Interaction (New) ---
+    // Update file labels when files are selected so the user sees what they picked
+    document.getElementById('colorInput').addEventListener('change', function(e) {
+        const fileName = e.target.files[0] ? e.target.files[0].name : "No file selected";
+        document.getElementById('colorFileName').innerText = fileName;
+    });
+    document.getElementById('depthInput').addEventListener('change', function(e) {
+        const fileName = e.target.files[0] ? e.target.files[0].name : "No file selected";
+        document.getElementById('depthFileName').innerText = fileName;
+    });
+
+
+    // --- 1. Three.js Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    // Add some subtle fog for depth in the dark scene
+    scene.fog = new THREE.FogExp2(0x050a14, 0.001); 
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0); // transparent background for CSS gradient to show
+    container.appendChild(renderer.domElement);
+
+    camera.position.z = 200;
+
+    let targetRotationX = 0;
+    let targetRotationY = 0;
+    let targetZoom = 200;
+    let pointCloud;
+
+    // --- 2. Image Processing & Point Cloud Generation (Core logic unchanged) ---
+    const colorInput = document.getElementById('colorInput');
+    const depthInput = document.getElementById('depthInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const loadingMsg = document.getElementById('loading');
+    const btnTextSpan = generateBtn.querySelector('span');
+
+    function checkInputs() {
+        if(colorInput.files.length > 0 && depthInput.files.length > 0) {
+            generateBtn.disabled = false;
+        }
+    }
+    colorInput.addEventListener('change', checkInputs);
+    depthInput.addEventListener('change', checkInputs);
+
+    generateBtn.addEventListener('click', () => {
+        const colorFile = colorInput.files[0];
+        const depthFile = depthInput.files[0];
+        if (!colorFile || !depthFile) return;
+
+        loadingMsg.style.display = 'block';
+        generateBtn.disabled = true;
+        btnTextSpan.innerText = "INITIALIZING...";
+
+        const imgLoader = new THREE.ImageLoader();
+        const loadFile = (file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+
+        Promise.all([loadFile(colorFile), loadFile(depthFile)]).then(([colorUrl, depthUrl]) => {
+            const colorImg = new Image();
+            const depthImg = new Image();
+            colorImg.src = colorUrl;
+            depthImg.src = depthUrl;
+            let loadedCount = 0;
+            const checkLoad = () => {
+                loadedCount++;
+                if (loadedCount === 2) createPointCloud(colorImg, depthImg);
+            };
+            colorImg.onload = checkLoad;
+            depthImg.onload = checkLoad;
+        });
+    });
+
+    function createPointCloud(colorImg, depthImg) {
+        const width = colorImg.width;
+        const height = colorImg.height;
+        const MAX_WIDTH = 400; 
+        const scale = Math.min(1, MAX_WIDTH / width);
+        const w = Math.floor(width * scale);
+        const h = Math.floor(height * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        ctx.drawImage(colorImg, 0, 0, w, h);
+        const colorData = ctx.getImageData(0, 0, w, h).data;
+        ctx.clearRect(0,0,w,h);
+        ctx.drawImage(depthImg, 0, 0, w, h);
+        const depthData = ctx.getImageData(0, 0, w, h).data;
+
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+        const depthScale = 150; // Slightly deeper for dramatic effect
+        const cx = w / 2;
+        const cy = h / 2;
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = (y * w + x) * 4;
+                const dVal = depthData[i]; 
+                if (dVal < 15) continue; // Cleanup dark noise
+
+                const z = (dVal / 255) * depthScale;
+                positions.push(x - cx, -(y - cy), z);
+                colors.push(colorData[i] / 255, colorData[i+1] / 255, colorData[i+2] / 255);
+            }
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+        // Slightly larger points for a "digital particle" look
+        const material = new THREE.PointsMaterial({ size: 1.8, vertexColors: true });
+
+        if(pointCloud) scene.remove(pointCloud);
+        pointCloud = new THREE.Points(geometry, material);
+        scene.add(pointCloud);
+
+        loadingMsg.style.display = 'none';
+        generateBtn.disabled = false;
+        btnTextSpan.innerText = "RE-ENGAGE SYSTEM";
+    }
+
+
+    // --- 3. MediaPipe Hands Setup (Visuals updated) ---
+    const videoElement = document.getElementById('input_video');
+    const previewCanvas = document.getElementById('webcam-preview');
+    const previewCtx = previewCanvas.getContext('2d');
+    const statusDot = document.getElementById('handStatus');
+
+    function onResults(results) {
+        previewCtx.save();
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        
+        // Draw the video feed slightly darker and bluer for sci-fi feel
+        previewCtx.filter = 'brightness(0.8) contrast(1.2) hue-rotate(180deg)'; 
+        previewCtx.drawImage(results.image, 0, 0, previewCanvas.width, previewCanvas.height);
+        previewCtx.filter = 'none';
+        
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            statusDot.classList.add('status-active');
+            const landmarks = results.multiHandLandmarks[0];
+            
+            // Draw skeleton with neon colors
+            drawConnectors(previewCtx, landmarks, HAND_CONNECTIONS, {color: '#03e9f4', lineWidth: 2});
+            drawLandmarks(previewCtx, landmarks, {color: '#b026ff', lineWidth: 1, radius: 2});
+
+            // Gesture Logic
+            const indexTip = landmarks[8];
+            const wrist = landmarks[0];
+            const sensitivity = 2.5; // Increased sensitivity
+            const dx = (indexTip.x - 0.5) * sensitivity;
+            const dy = (indexTip.y - 0.5) * sensitivity;
+
+            targetRotationY = dx * Math.PI;
+            targetRotationX = dy * Math.PI / 2;
+
+            const dxW = wrist.x - landmarks[9].x;
+            const dyW = wrist.y - landmarks[9].y;
+            const handSize = Math.sqrt(dxW*dxW + dyW*dyW);
+            const zoomFactor = (1 / handSize) * 35;
+            targetZoom = Math.min(Math.max(zoomFactor, 20), 600); // Wider zoom range
+
+        } else {
+            statusDot.classList.remove('status-active');
+            // Add a subtle "scanning" line when no hand is detected
+            previewCtx.strokeStyle = 'rgba(3, 233, 244, 0.3)';
+            previewCtx.lineWidth = 2;
+            let scanY = (Date.now() / 10) % previewCanvas.height;
+            previewCtx.beginPath();
+            previewCtx.moveTo(0, scanY);
+            previewCtx.lineTo(previewCanvas.width, scanY);
+            previewCtx.stroke();
+        }
+        previewCtx.restore();
+    }
+
+    const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    hands.onResults(onResults);
+
+    const cameraUtils = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); },
+        width: 320, height: 240
+    });
+    cameraUtils.start();
+
+
+    // --- 4. Animation Loop ---
+    function animate() {
+        requestAnimationFrame(animate);
+
+        if (pointCloud) {
+            const lerpSpeed = 0.08; // Faster, smoother movement
+            const cx = Math.sin(targetRotationY) * Math.cos(targetRotationX) * targetZoom;
+            const cy = Math.sin(targetRotationX) * targetZoom;
+            const cz = Math.cos(targetRotationY) * Math.cos(targetRotationX) * targetZoom;
+
+            camera.position.x += (cx - camera.position.x) * lerpSpeed;
+            camera.position.y += (cy - camera.position.y) * lerpSpeed;
+            camera.position.z += (cz - camera.position.z) * lerpSpeed;
+            camera.lookAt(0, 0, 0);
+            
+            // Slow rotation of the cloud itself for more dynamic feel
+            pointCloud.rotation.y += 0.001;
+        }
+        renderer.render(scene, camera);
+    }
+    
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html>
 
         #webcam-preview {
             position: absolute; bottom: 10px; right: 10px; z-index: 10;
