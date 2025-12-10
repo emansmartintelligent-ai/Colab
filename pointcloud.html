@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand-Controlled Depth Map Viewer</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; color: white; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        #ui-layer {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 8px;
+            width: 300px;
+        }
+
+        h2 { margin: 0 0 10px 0; font-size: 1.2rem; }
+        p { font-size: 0.8rem; color: #ccc; }
+        
+        .input-group { margin-bottom: 10px; }
+        label { display: block; font-size: 0.8rem; margin-bottom: 5px; }
+        input[type="file"] { width: 100%; font-size: 0.8rem; }
+        
+        button {
+            width: 100%; padding: 10px; background: #007bff; color: white; 
+            border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #555; cursor: not-allowed; }
+
+        #webcam-preview {
+            position: absolute; bottom: 10px; right: 10px; z-index: 10;
+            width: 160px; height: 120px; border: 2px solid #fff; border-radius: 8px;
+            transform: scaleX(-1); /* Mirror effect */
+            background: black;
+        }
+
+        #loading { display: none; color: #4db8ff; font-weight: bold; margin-top: 10px; text-align: center;}
+        
+        .status-dot {
+            height: 10px; width: 10px; background-color: #bbb; border-radius: 50%;
+            display: inline-block; margin-right: 5px;
+        }
+        .status-active { background-color: #00ff00; box-shadow: 0 0 5px #00ff00; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h2>Depth Cloud Viewer</h2>
+        <p>Turn your depth map into 3D. Control rotation with your hand!</p>
+        
+        <div class="input-group">
+            <label>1. Original Color Image</label>
+            <input type="file" id="colorInput" accept="image/*">
+        </div>
+
+        <div class="input-group">
+            <label>2. Depth Map (Grayscale)</label>
+            <input type="file" id="depthInput" accept="image/*">
+        </div>
+
+        <button id="generateBtn" disabled>Generate Point Cloud</button>
+        <div id="loading">Processing...</div>
+
+        <hr style="border-color: #444;">
+        
+        <div style="display: flex; align-items: center; margin-top: 10px;">
+            <span id="handStatus" class="status-dot"></span>
+            <span style="font-size: 0.8rem;">Hand Tracking Status</span>
+        </div>
+        <p style="font-size: 0.75rem; margin-top:5px; color:#888;">
+            * Move hand <b>Left/Right/Up/Down</b> to Rotate.<br>
+            * Move hand <b>Close/Far</b> to Zoom.
+        </p>
+    </div>
+
+    <video id="input_video" style="display:none"></video>
+    <canvas id="webcam-preview"></canvas>
+
+    <div id="canvas-container"></div>
+
+<script>
+    // --- 1. Three.js Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
+
+    // Initial Camera Position
+    camera.position.z = 200;
+
+    // Helper vars for rotation/zoom
+    let targetRotationX = 0;
+    let targetRotationY = 0;
+    let targetZoom = 200;
+    let pointCloud;
+
+    // --- 2. Image Processing & Point Cloud Generation ---
+    const colorInput = document.getElementById('colorInput');
+    const depthInput = document.getElementById('depthInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const loadingMsg = document.getElementById('loading');
+
+    // Enable button when both files are selected
+    function checkInputs() {
+        if(colorInput.files.length > 0 && depthInput.files.length > 0) {
+            generateBtn.disabled = false;
+        }
+    }
+    colorInput.addEventListener('change', checkInputs);
+    depthInput.addEventListener('change', checkInputs);
+
+    generateBtn.addEventListener('click', () => {
+        const colorFile = colorInput.files[0];
+        const depthFile = depthInput.files[0];
+        
+        if (!colorFile || !depthFile) return;
+
+        loadingMsg.style.display = 'block';
+        generateBtn.disabled = true;
+
+        // Load images
+        const imgLoader = new THREE.ImageLoader();
+        
+        // Helper to load file as URL
+        const loadFile = (file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+
+        Promise.all([loadFile(colorFile), loadFile(depthFile)]).then(([colorUrl, depthUrl]) => {
+            
+            // Create Image objects to read data
+            const colorImg = new Image();
+            const depthImg = new Image();
+            
+            colorImg.src = colorUrl;
+            depthImg.src = depthUrl;
+
+            // Wait for images to load
+            let loadedCount = 0;
+            const checkLoad = () => {
+                loadedCount++;
+                if (loadedCount === 2) createPointCloud(colorImg, depthImg);
+            };
+
+            colorImg.onload = checkLoad;
+            depthImg.onload = checkLoad;
+        });
+    });
+
+    function createPointCloud(colorImg, depthImg) {
+        // Use a canvas to extract pixel data
+        const width = colorImg.width;
+        const height = colorImg.height;
+        
+        // We will downsample for performance if image is huge
+        const MAX_WIDTH = 400; 
+        const scale = Math.min(1, MAX_WIDTH / width);
+        const w = Math.floor(width * scale);
+        const h = Math.floor(height * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        // Draw Color
+        ctx.drawImage(colorImg, 0, 0, w, h);
+        const colorData = ctx.getImageData(0, 0, w, h).data;
+
+        // Draw Depth
+        ctx.clearRect(0,0,w,h);
+        ctx.drawImage(depthImg, 0, 0, w, h);
+        const depthData = ctx.getImageData(0, 0, w, h).data;
+
+        // Create Geometry
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+
+        // Depth multiplier (Z intensity)
+        const depthScale = 100; 
+
+        // Center offsets
+        const cx = w / 2;
+        const cy = h / 2;
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = (y * w + x) * 4;
+                
+                // Get depth value (0-255). Use Red channel.
+                // Assuming White (255) is CLOSE, Black (0) is FAR.
+                const dVal = depthData[i]; 
+                
+                // Skip completely black pixels if desired (noise)
+                if (dVal < 10) continue;
+
+                const z = (dVal / 255) * depthScale;
+
+                // X and Y need to be adjusted by Z for perspective correctness, 
+                // but for simple visualizer, linear mapping is okay.
+                // Flip Y to match image coord system
+                const pX = (x - cx);
+                const pY = -(y - cy); 
+                const pZ = z;
+
+                positions.push(pX, pY, pZ);
+
+                // Color (normalize 0-1)
+                colors.push(colorData[i] / 255, colorData[i+1] / 255, colorData[i+2] / 255);
+            }
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+        // Material
+        const material = new THREE.PointsMaterial({ size: 1.5, vertexColors: true });
+
+        // Cleanup old cloud
+        if(pointCloud) scene.remove(pointCloud);
+
+        pointCloud = new THREE.Points(geometry, material);
+        scene.add(pointCloud);
+
+        // Reset UI
+        loadingMsg.style.display = 'none';
+        generateBtn.disabled = false;
+        generateBtn.innerText = "Regenerate";
+    }
+
+
+    // --- 3. MediaPipe Hands Setup ---
+    const videoElement = document.getElementById('input_video');
+    const previewCanvas = document.getElementById('webcam-preview');
+    const previewCtx = previewCanvas.getContext('2d');
+    const statusDot = document.getElementById('handStatus');
+
+    function onResults(results) {
+        // Draw webcam preview
+        previewCtx.save();
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        previewCtx.drawImage(results.image, 0, 0, previewCanvas.width, previewCanvas.height);
+        
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            statusDot.classList.add('status-active');
+            
+            // Get the first hand
+            const landmarks = results.multiHandLandmarks[0];
+            
+            // Draw skeleton on preview
+            drawConnectors(previewCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+            drawLandmarks(previewCtx, landmarks, {color: '#FF0000', lineWidth: 1});
+
+            // --- GESTURE CONTROL LOGIC ---
+            // Use Index Finger Tip (Landmark 8) for rotation mapping
+            const indexTip = landmarks[8];
+            const wrist = landmarks[0];
+
+            // 1. Rotation (X/Y position)
+            // MediaPipe coords: x (0 to 1, left to right), y (0 to 1, top to bottom)
+            // We remap x (0..1) -> (-PI..PI)
+            // We remap y (0..1) -> (-PI/2..PI/2)
+            
+            // Sensitivity
+            const sensitivity = 2.0;
+            
+            // Calculate offsets from center (0.5)
+            const dx = (indexTip.x - 0.5) * sensitivity;
+            const dy = (indexTip.y - 0.5) * sensitivity;
+
+            // Update Targets
+            targetRotationY = dx * Math.PI; // Yaw
+            targetRotationX = dy * Math.PI / 2; // Pitch
+
+            // 2. Zoom (Approximation via hand size)
+            // Simple distance between Wrist(0) and Middle Finger Base(9) roughly indicates depth
+            // Larger distance = closer to camera
+            const dxW = wrist.x - landmarks[9].x;
+            const dyW = wrist.y - landmarks[9].y;
+            const handSize = Math.sqrt(dxW*dxW + dyW*dyW);
+            
+            // Map handSize (approx 0.1 to 0.4) to Zoom Z (50 to 400)
+            // Large hand (close) -> Zoom In (Small Z)
+            // Small hand (far) -> Zoom Out (Large Z)
+            const zoomFactor = (1 / handSize) * 30;
+            targetZoom = Math.min(Math.max(zoomFactor, 50), 500);
+
+        } else {
+            statusDot.classList.remove('status-active');
+        }
+        previewCtx.restore();
+    }
+
+    const hands = new Hands({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }});
+
+    hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
+
+    hands.onResults(onResults);
+
+    const cameraUtils = new Camera(videoElement, {
+        onFrame: async () => {
+            await hands.send({image: videoElement});
+        },
+        width: 320,
+        height: 240
+    });
+    cameraUtils.start();
+
+
+    // --- 4. Animation Loop ---
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Smooth Camera Movement (Lerp)
+        if (pointCloud) {
+            // Apply Orbit logic manually
+            // X rotation (Up/Down)
+            // Y rotation (Left/Right)
+            
+            // Current positions
+            const r = targetZoom; // Radius (Zoom level)
+            
+            // Smoothly interpolate current angles to target angles
+            // We use a simple lerp for smooth motion
+            const lerpSpeed = 0.05;
+            
+            // Store current analytical angles if needed, but for simple orbit:
+            // Calculate position on sphere
+            
+            // We maintain "camera.position" based on the computed rotations
+            // Just applying rotation to the group or moving camera on sphere
+            
+            const time = Date.now() * 0.0005; // auto drift if no hand? No, let's stick to hand.
+
+            // To make it easier, let's just orbit the camera using spherical coords logic
+            // x = r * sin(theta) * cos(phi)
+            // y = r * cos(theta)
+            // z = r * sin(theta) * sin(phi)
+            
+            // Map targetRotX/Y to Theta/Phi
+            // Theta (vertical) 0 to PI. Center is PI/2.
+            // Phi (horizontal) 0 to 2PI.
+            
+            const theta = (targetRotationX + 0.5) * Math.PI; // Vertical
+            const phi = (targetRotationY + 0.5) * 2 * Math.PI; // Horizontal
+
+            // Actually, easier way: Use ThreeJS LookAt
+            // Create a dummy target position based on hand input
+            
+            const cx = Math.sin(targetRotationY) * Math.cos(targetRotationX) * targetZoom;
+            const cy = Math.sin(targetRotationX) * targetZoom;
+            const cz = Math.cos(targetRotationY) * Math.cos(targetRotationX) * targetZoom;
+
+            // Lerp camera position
+            camera.position.x += (cx - camera.position.x) * lerpSpeed;
+            camera.position.y += (cy - camera.position.y) * lerpSpeed;
+            camera.position.z += (cz - camera.position.z) * lerpSpeed;
+
+            camera.lookAt(0, 0, 0);
+        }
+
+        renderer.render(scene, camera);
+    }
+    
+    // Resize Handler
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+
+</script>
+</body>
+</html>
