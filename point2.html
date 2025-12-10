@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Depth Cloud Mobile</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        :root {
+            --neon-cyan: #03e9f4;
+            --neon-purple: #b026ff;
+            --bg-dark: #050a14;
+            --panel-bg: rgba(10, 20, 40, 0.95); /* Slightly more opaque for readability */
+        }
+
+        body { 
+            margin: 0; overflow: hidden; 
+            background-color: var(--bg-dark); 
+            background-image: radial-gradient(circle at center, #1a2a4a 0%, #050a14 70%);
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            color: white; 
+            touch-action: none; /* Prevents scroll on mobile */
+        }
+
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        /* --- UI PANEL --- */
+        #ui-layer {
+            position: absolute; z-index: 100;
+            background: var(--panel-bg);
+            border: 1px solid rgba(3, 233, 244, 0.3);
+            box-shadow: 0 0 20px rgba(0,0,0, 0.5);
+            transition: transform 0.3s ease;
+            box-sizing: border-box;
+            display: flex; flex-direction: column;
+        }
+
+        /* Minimize Toggle Button */
+        #toggle-btn {
+            width: 100%; text-align: center; padding: 10px;
+            background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.1);
+            color: var(--neon-cyan); font-size: 0.8rem; letter-spacing: 2px;
+            cursor: pointer; text-transform: uppercase;
+        }
+
+        #ui-content { padding: 20px; }
+
+        /* DESKTOP MODE */
+        @media (min-width: 769px) {
+            #ui-layer {
+                top: 20px; left: 20px; width: 320px; border-radius: 15px;
+            }
+        }
+
+        /* MOBILE MODE (Portrait & Landscape) */
+        @media (max-width: 768px) {
+            #ui-layer {
+                bottom: 0; left: 0; right: 0; top: auto;
+                width: 100%;
+                border-radius: 20px 20px 0 0;
+                border-bottom: none;
+                max-height: 85vh; /* Don't cover entire screen */
+                overflow-y: auto;
+            }
+        }
+
+        h2 { 
+            margin: 0 0 5px 0; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px;
+            color: var(--neon-cyan); text-shadow: 0 0 10px rgba(3, 233, 244, 0.5);
+        }
+        
+        .hidden-input { display: none; }
+
+        .neon-file-label {
+            display: block; padding: 15px; margin-bottom: 10px;
+            background: rgba(0,0,0,0.4); border: 1px solid var(--neon-purple);
+            color: var(--neon-purple); text-transform: uppercase; font-size: 0.8rem; font-weight: bold;
+            text-align: center; border-radius: 8px;
+        }
+        
+        .file-selected {
+            background: rgba(176, 38, 255, 0.2);
+            color: white; border-color: white;
+            box-shadow: 0 0 10px var(--neon-purple);
+        }
+
+        /* MAIN BUTTON - ALWAYS VISIBLE/ACTIVE */
+        .neon-button {
+            width: 100%; padding: 15px; margin-top: 10px;
+            font-size: 1rem; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;
+            color: #000; background: var(--neon-cyan); 
+            border: none; border-radius: 4px;
+            box-shadow: 0 0 15px var(--neon-cyan);
+            cursor: pointer;
+        }
+        
+        /* When processing */
+        .neon-button:disabled { background: #555; color: #aaa; box-shadow: none; }
+
+        .controls-info {
+            margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.75rem; color:#ccc; line-height: 1.5;
+        }
+
+        /* Minimized State */
+        .minimized { transform: translateY(calc(100% - 40px)); }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div id="toggle-btn" onclick="toggleUI()">▼ Hide Controls</div>
+        
+        <div id="ui-content">
+            <h2>Depth Core 3D</h2>
+            <p style="font-size: 0.8rem; color: #aaa; margin-bottom: 15px;">Upload Map & Color Image</p>
+            
+            <label id="labelColor" class="neon-file-label" for="colorInput">
+                1. Select Color Image
+                <div id="colorName" style="font-size:0.7rem; margin-top:5px; color:#fff;"></div>
+            </label>
+            <input type="file" id="colorInput" accept="image/*" class="hidden-input">
+
+            <label id="labelDepth" class="neon-file-label" for="depthInput" style="border-color: var(--neon-cyan); color: var(--neon-cyan);">
+                2. Select Depth Map
+                <div id="depthName" style="font-size:0.7rem; margin-top:5px; color:#fff;"></div>
+            </label>
+            <input type="file" id="depthInput" accept="image/*" class="hidden-input">
+
+            <button id="generateBtn" class="neon-button">ENGAGE SYSTEM</button>
+            
+            <div class="controls-info">
+                <strong>GESTURES:</strong><br>
+                • 1 Finger: Rotate<br>
+                • 2 Fingers: Pan<br>
+                • Pinch: Zoom
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+<script>
+    // --- 1. UI Handling ---
+    const uiLayer = document.getElementById('ui-layer');
+    const toggleBtn = document.getElementById('toggle-btn');
+    let isMinimized = false;
+
+    function toggleUI() {
+        isMinimized = !isMinimized;
+        if (isMinimized) {
+            uiLayer.classList.add('minimized');
+            toggleBtn.innerText = "▲ Show Controls";
+        } else {
+            uiLayer.classList.remove('minimized');
+            toggleBtn.innerText = "▼ Hide Controls";
+        }
+    }
+
+    // File Inputs
+    const colorInput = document.getElementById('colorInput');
+    const depthInput = document.getElementById('depthInput');
+    const labelColor = document.getElementById('labelColor');
+    const labelDepth = document.getElementById('labelDepth');
+
+    function handleFile(input, label, nameDisplayId) {
+        if(input.files && input.files[0]) {
+            label.classList.add('file-selected');
+            document.getElementById(nameDisplayId).innerText = input.files[0].name;
+        }
+    }
+
+    colorInput.addEventListener('change', () => handleFile(colorInput, labelColor, 'colorName'));
+    depthInput.addEventListener('change', () => handleFile(depthInput, labelDepth, 'depthName'));
+
+
+    // --- 2. Generation Logic ---
+    const generateBtn = document.getElementById('generateBtn');
+
+    // Handle both Click and Touch to ensure it works on all phones
+    const triggerGeneration = (e) => {
+        e.preventDefault(); // Stop ghost clicks
+
+        const colorFile = colorInput.files[0];
+        const depthFile = depthInput.files[0];
+
+        // VALIDATION ALERT
+        if (!colorFile || !depthFile) {
+            alert("⚠️ Please select BOTH the Color Image and the Depth Map first.");
+            return;
+        }
+
+        // Processing State
+        generateBtn.disabled = true;
+        generateBtn.innerText = "PROCESSING...";
+
+        // Load Images
+        const loadFile = (file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+
+        Promise.all([loadFile(colorFile), loadFile(depthFile)]).then(([colorUrl, depthUrl]) => {
+            const colorImg = new Image();
+            const depthImg = new Image();
+            
+            let loaded = 0;
+            const onImgLoad = () => {
+                loaded++;
+                if(loaded === 2) {
+                    setTimeout(() => {
+                        createPointCloud(colorImg, depthImg);
+                        // Auto-hide UI on success so they can see the result
+                        toggleUI(); 
+                        generateBtn.disabled = false;
+                        generateBtn.innerText = "ENGAGE SYSTEM";
+                    }, 100);
+                }
+            };
+
+            colorImg.onload = onImgLoad;
+            depthImg.onload = onImgLoad;
+            
+            colorImg.src = colorUrl;
+            depthImg.src = depthUrl;
+        });
+    };
+
+    generateBtn.addEventListener('click', triggerGeneration);
+    generateBtn.addEventListener('touchend', triggerGeneration);
+
+
+    // --- 3. Three.js Scene ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x050a14, 0.001); 
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 4000);
+    camera.position.z = 300;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio); // Sharpness on mobile
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0); 
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    let pointCloud;
+
+    function createPointCloud(colorImg, depthImg) {
+        // Mobile Optimization: Reduce resolution for performance
+        const w = 300; 
+        const scale = w / colorImg.width;
+        const h = Math.floor(colorImg.height * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        // Get Color Data
+        ctx.drawImage(colorImg, 0, 0, w, h);
+        const colorData = ctx.getImageData(0, 0, w, h).data;
+
+        // Get Depth Data
+        ctx.clearRect(0,0,w,h);
+        ctx.drawImage(depthImg, 0, 0, w, h);
+        const depthData = ctx.getImageData(0, 0, w, h).data;
+
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+
+        const depthFactor = 100; // Depth intensity
+        const cx = w / 2;
+        const cy = h / 2;
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = (y * w + x) * 4;
+                const r = depthData[i];
+                
+                // Skip black/background pixels
+                if (r < 20) continue;
+
+                const z = (r / 255) * depthFactor;
+                
+                positions.push(x - cx, -(y - cy), z);
+                colors.push(colorData[i]/255, colorData[i+1]/255, colorData[i+2]/255);
+            }
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+        if(pointCloud) scene.remove(pointCloud);
+
+        const material = new THREE.PointsMaterial({ size: 2, vertexColors: true });
+        pointCloud = new THREE.Points(geometry, material);
+        scene.add(pointCloud);
+
+        // Reset view
+        controls.reset();
+        camera.position.z = 300;
+    }
+
+    // Animation Loop
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // Responsive Resize
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
