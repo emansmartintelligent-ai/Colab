@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workshops - Garden Festival Weekend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-green: #2D5016;
+            --secondary-green: #4A7C59;
+            --accent-green: #8FBC8F;
+            --earth-tone: #8B7355;
+            --cream: #F5F5DC;
+            --white: #FFFFFF;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #F5F5DC 0%, #E8E8D3 100%);
+            min-height: 100vh;
+        }
+        
+        .page-title {
+            font-family: 'Playfair Display', serif;
+            color: var(--primary-green);
+        }
+        
+        .category-btn {
+            background: white;
+            border: 2px solid var(--earth-tone);
+            color: var(--earth-tone);
+            transition: all 0.3s ease;
+        }
+        
+        .category-btn.active {
+            background: var(--secondary-green);
+            border-color: var(--secondary-green);
+            color: white;
+        }
+        
+        .category-btn:hover {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+            color: white;
+        }
+        
+        .workshop-card {
+            background: white;
+            border-radius: 1rem;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .workshop-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(45, 80, 22, 0.15);
+        }
+        
+        .workshop-card.expanded {
+            box-shadow: 0 16px 32px rgba(45, 80, 22, 0.2);
+        }
+        
+        .difficulty-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-weight: 500;
+        }
+        
+        .beginner-badge {
+            background: rgba(143, 188, 143, 0.2);
+            color: var(--accent-green);
+        }
+        
+        .intermediate-badge {
+            background: rgba(139, 115, 85, 0.2);
+            color: var(--earth-tone);
+        }
+        
+        .advanced-badge {
+            background: rgba(45, 80, 22, 0.2);
+            color: var(--primary-green);
+        }
+        
+        .availability-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .available {
+            background: #10b981;
+        }
+        
+        .limited {
+            background: #f59e0b;
+        }
+        
+        .full {
+            background: #ef4444;
+        }
+        
+        .expanded-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .expanded-content.show {
+            max-height: 500px;
+        }
+        
+        .nav-bottom {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(139, 115, 85, 0.2);
+        }
+        
+        .btn-primary {
+            background: var(--secondary-green);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-green);
+            transform: translateY(-2px);
+        }
+        
+        .btn-primary:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            border: 2px solid var(--earth-tone);
+            color: var(--earth-tone);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: var(--earth-tone);
+            color: white;
+        }
+        
+        .modal {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 1rem;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .form-input {
+            border: 2px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--secondary-green);
+        }
+        
+        .instructor-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="text-gray-800 pb-20">
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <h1 class="page-title text-2xl md:text-3xl font-bold">Festival Workshops</h1>
+                <button onclick="navigateTo('index.html')" class="text-gray-500 hover:text-secondary-green transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Category Filter -->
+    <section class="py-6 px-4 bg-white border-b">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex flex-wrap gap-3 justify-center">
+                <button class="category-btn px-4 py-2 rounded-full text-sm font-medium active" onclick="filterCategory('all')" id="filterAll">
+                    All Workshops
+                </button>
+                <button class="category-btn px-4 py-2 rounded-full text-sm font-medium" onclick="filterCategory('art')" id="filterArt">
+                    Botanical Art
+                </button>
+                <button class="category-btn px-4 py-2 rounded-full text-sm font-medium" onclick="filterCategory('gardening')" id="filterGardening">
+                    Gardening
+                </button>
+                <button class="category-btn px-4 py-2 rounded-full text-sm font-medium" onclick="filterCategory('wellness')" id="filterWellness">
+                    Wellness
+                </button>
+                <button class="category-btn px-4 py-2 rounded-full text-sm font-medium" onclick="filterCategory('science')" id="filterScience">
+                    Plant Science
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Workshops Grid -->
+    <main class="py-8 px-4">
+        <div class="max-w-6xl mx-auto">
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6" id="workshopsGrid">
+                
+                <!-- Terrarium Workshop -->
+                <div class="workshop-card shadow-lg" data-category="gardening" onclick="expandWorkshop(this, 'terrarium')">
+                    <img src="resources/workshop-terrarium.png" alt="Terrarium Workshop" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2" style="color: var(--primary-green);">Miniature Ecosystems</h3>
+                                <p class="text-sm text-gray-600 mb-2">Create beautiful terrariums and learn about plant ecology</p>
+                                <span class="difficulty-badge beginner-badge">Beginner</span>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-medium text-gray-700">Saturday 10:30 AM</div>
+                                <div class="flex items-center mt-1">
+                                    <span class="availability-indicator available"></span>
+                                    <span class="text-xs text-gray-500">Available</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-lg font-semibold" style="color: var(--secondary-green);">$35</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm font-medium" onclick="event.stopPropagation(); openBookingModal('terrarium')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                    <div class="expanded-content">
+                        <div class="px-6 pb-6 border-t border-gray-100">
+                            <p class="text-sm text-gray-700 mb-4">
+                                Learn to create beautiful, self-sustaining terrariums in this hands-on workshop. Our expert will guide you through plant selection, layering techniques, and maintenance tips for your miniature garden.
+                            </p>
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2" style="color: var(--primary-green);">What's Included:</h4>
+                                <ul class="text-sm text-gray-600 space-y-1">
+                                    <li>• Glass terrarium container</li>
+                                    <li>• Selection of plants and moss</li>
+                                    <li>• Soil and decorative elements</li>
+                                    <li>• Care instructions guide</li>
+                                </ul>
+                            </div>
+                            <div class="flex items-center mb-4">
+                                <div class="instructor-avatar mr-3">MJ</div>
+                                <div>
+                                    <div class="font-medium text-sm">Maria Johnson</div>
+                                    <div class="text-xs text-gray-500">Horticulture Specialist</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botanical Illustration -->
+                <div class="workshop-card shadow-lg" data-category="art" onclick="expandWorkshop(this, 'illustration')">
+                    <img src="https://kimi-web-img.moonshot.cn/img/www.chicagobotanic.org/a205cd17ad1d090264b3bcb9746dc244100c7a5a.jpg" alt="Botanical Illustration" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2" style="color: var(--primary-green);">Botanical Illustration</h3>
+                                <p class="text-sm text-gray-600 mb-2">Master traditional scientific drawing techniques</p>
+                                <span class="difficulty-badge intermediate-badge">Intermediate</span>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-medium text-gray-700">Saturday 2:00 PM</div>
+                                <div class="flex items-center mt-1">
+                                    <span class="availability-indicator limited"></span>
+                                    <span class="text-xs text-gray-500">Limited Spots</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-lg font-semibold" style="color: var(--secondary-green);">$45</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm font-medium" onclick="event.stopPropagation(); openBookingModal('illustration')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                    <div class="expanded-content">
+                        <div class="px-6 pb-6 border-t border-gray-100">
+                            <p class="text-sm text-gray-700 mb-4">
+                                Master the art of botanical illustration using traditional techniques. Learn about plant anatomy, shading, and color theory while creating detailed scientific drawings.
+                            </p>
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2" style="color: var(--primary-green);">Materials Provided:</h4>
+                                <ul class="text-sm text-gray-600 space-y-1">
+                                    <li>• Professional drawing paper</li>
+                                    <li>• Pencils and erasers</li>
+                                    <li>• Watercolor set</li>
+                                    <li>• Reference plant specimens</li>
+                                </ul>
+                            </div>
+                            <div class="flex items-center mb-4">
+                                <div class="instructor-avatar mr-3">AS</div>
+                                <div>
+                                    <div class="font-medium text-sm">Dr. Anna Smith</div>
+                                    <div class="text-xs text-gray-500">Botanical Artist & Illustrator</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plant Identification -->
+                <div class="workshop-card shadow-lg" data-category="science" onclick="expandWorkshop(this, 'identification')">
+                    <img src="https://kimi-web-img.moonshot.cn/img/queensbotanical.org/fbe519761e2ecb9f6ca4a72e51be29b92cb8bb47.jpg" alt="Plant Identification" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2" style="color: var(--primary-green);">Plant ID Masterclass</h3>
+                                <p class="text-sm text-gray-600 mb-2">Learn scientific plant classification methods</p>
+                                <span class="difficulty-badge advanced-badge">Advanced</span>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-medium text-gray-700">Sunday 10:00 AM</div>
+                                <div class="flex items-center mt-1">
+                                    <span class="availability-indicator available"></span>
+                                    <span class="text-xs text-gray-500">Available</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-lg font-semibold" style="color: var(--secondary-green);">$30</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm font-medium" onclick="event.stopPropagation(); openBookingModal('identification')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                    <div class="expanded-content">
+                        <div class="px-6 pb-6 border-t border-gray-100">
+                            <p class="text-sm text-gray-700 mb-4">
+                                Master the art of plant identification using scientific methods. Learn to use field guides, identify key characteristics, and understand botanical nomenclature.
+                            </p>
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2" style="color: var(--primary-green);">What You'll Learn:</h4>
+                                <ul class="text-sm text-gray-600 space-y-1">
+                                    <li>• Plant anatomy and morphology</li>
+                                    <li>• Use of dichotomous keys</li>
+                                    <li>• Botanical nomenclature</li>
+                                    <li>• Field identification techniques</li>
+                                </ul>
+                            </div>
+                            <div class="flex items-center mb-4">
+                                <div class="instructor-avatar mr-3">RC</div>
+                                <div>
+                                    <div class="font-medium text-sm">Dr. Robert Chen</div>
+                                    <div class="text-xs text-gray-500">Plant Taxonomist</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Herb Garden Workshop -->
+                <div class="workshop-card shadow-lg" data-category="gardening" onclick="expandWorkshop(this, 'herbs')">
+                    <img src="https://kimi-web-img.moonshot.cn/img/static.themarthablog.com/766f7f81b6f60241335110fa68f88d635c0a570f.jpeg" alt="Herb Garden Workshop" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2" style="color: var(--primary-green);">Herb Garden Design</h3>
+                                <p class="text-sm text-gray-600 mb-2">Plan and create your own herb garden</p>
+                                <span class="difficulty-badge beginner-badge">Beginner</span>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-medium text-gray-700">Sunday 1:30 PM</div>
+                                <div class="flex items-center mt-1">
+                                    <span class="availability-indicator available"></span>
+                                    <span class="text-xs text-gray-500">Available</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-lg font-semibold" style="color: var(--secondary-green);">$25</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm font-medium" onclick="event.stopPropagation(); openBookingModal('herbs')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                    <div class="expanded-content">
+                        <div class="px-6 pb-6 border-t border-gray-100">
+                            <p class="text-sm text-gray-700 mb-4">
+                                Learn to design and plant your own herb garden. Discover which herbs grow well together, seasonal planting schedules, and how to care for your herb garden year-round.
+                            </p>
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2" style="color: var(--primary-green);">Take Home:</h4>
+                                <ul class="text-sm text-gray-600 space-y-1">
+                                    <li>• Herb garden design plan</li>
+                                    <li>• Starter herb plants</li>
+                                    <li>• Planting schedule guide</li>
+                                    <li>• Care and maintenance tips</li>
+                                </ul>
+                            </div>
+                            <div class="flex items-center mb-4">
+                                <div class="instructor-avatar mr-3">LW</div>
+                                <div>
+                                    <div class="font-medium text-sm">Lisa Wang</div>
+                                    <div class="text-xs text-gray-500">Master Gardener</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nature Meditation -->
+                <div class="workshop-card shadow-lg" data-category="wellness" onclick="expandWorkshop(this, 'meditation')">
+                    <img src="https://kimi-web-img.moonshot.cn/img/images.squarespace-cdn.com/a3da2e22abc13522d3de785d79aa17dc626cb07a.jpg" alt="Nature Meditation" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2" style="color: var(--primary-green);">Nature Meditation</h3>
+                                <p class="text-sm text-gray-600 mb-2">Mindful connection with plants and nature</p>
+                                <span class="difficulty-badge beginner-badge">Beginner</span>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-medium text-gray-700">Saturday 8:00 AM</div>
+                                <div class="flex items-center mt-1">
+                                    <span class="availability-indicator available"></span>
+                                    <span class="text-xs text-gray-500">Available</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-lg font-semibold" style="color: var(--secondary-green);">$20</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm font-medium" onclick="event.stopPropagation(); openBookingModal('meditation')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                    <div class="expanded-content">
+                        <div class="px-6 pb-6 border-t border-gray-100">
+                            <p class="text-sm text-gray-700 mb-4">
+                                Start your day with a peaceful meditation session in our beautiful garden setting. Learn mindfulness techniques while connecting with the natural world around you.
+                            </p>
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2" style="color: var(--primary-green);">Session Includes:</h4>
+                                <ul class="text-sm text-gray-600 space-y-1">
+                                    <li>• Guided meditation practice</li>
+                                    <li>• Nature awareness exercises</li>
+                                    <li>• Breathing techniques</li>
+                                    <li>• Take-home mindfulness guide</li>
+                                </ul>
+                            </div>
+                            <div class="flex items-center mb-4">
+                                <div class="instructor-avatar mr-3">SM</div>
+                                <div>
+                                    <div class="font-medium text-sm">Sarah Miller</div>
+                                    <div class="text-xs text-gray-500">Certified Meditation Instructor</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seed Saving Workshop -->
+                <div class="workshop-card shadow-lg" data-category="science" onclick="expandWorkshop(this, 'seeds')">
+                    <img src="https://kimi-web-img.moonshot.cn/img/cdn.shopify.com/f021ffcf613cf9218fb52cd67b1482b924954114.jpg" alt="Seed Saving" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2" style="color: var(--primary-green);">Seed Saving Techniques</h3>
+                                <p class="text-sm text-gray-600 mb-2">Learn traditional seed preservation methods</p>
+                                <span class="difficulty-badge intermediate-badge">Intermediate</span>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-medium text-gray-700">Sunday 3:00 PM</div>
+                                <div class="flex items-center mt-1">
+                                    <span class="availability-indicator limited"></span>
+                                    <span class="text-xs text-gray-500">Limited Spots</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-lg font-semibold" style="color: var(--secondary-green);">$28</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm font-medium" onclick="event.stopPropagation(); openBookingModal('seeds')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                    <div class="expanded-content">
+                        <div class="px-6 pb-6 border-t border-gray-100">
+                            <p class="text-sm text-gray-700 mb-4">
+                                Discover the ancient art of seed saving. Learn how to collect, clean, and store seeds from your garden plants to ensure genetic diversity and sustainable gardening practices.
+                            </p>
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2" style="color: var(--primary-green);">Workshop Covers:</h4>
+                                <ul class="text-sm text-gray-600 space-y-1">
+                                    <li>• Seed collection techniques</li>
+                                    <li>• Cleaning and drying methods</li>
+                                    <li>• Proper storage conditions</li>
+                                    <li>• Genetic diversity principles</li>
+                                </ul>
+                            </div>
+                            <div class="flex items-center mb-4">
+                                <div class="instructor-avatar mr-3">JD</div>
+                                <div>
+                                    <div class="font-medium text-sm">James Davis</div>
+                                    <div class="text-xs text-gray-500">Heritage Seed Specialist</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Booking Modal -->
+    <div id="bookingModal" class="modal fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="modal-content w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold" style="color: var(--primary-green);">Book Workshop</h3>
+                <button onclick="closeBookingModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div id="modalContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="nav-bottom fixed bottom-0 left-0 right-0 z-50">
+        <div class="flex justify-around items-center py-3">
+            <button class="flex flex-col items-center p-2 text-gray-500" onclick="navigateTo('index.html')">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                </svg>
+                <span class="text-xs font-medium">Home</span>
+            </button>
+            <button class="flex flex-col items-center p-2 text-gray-500" onclick="navigateTo('schedule.html')">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-xs font-medium">Schedule</span>
+            </button>
+            <button class="flex flex-col items-center p-2 text-secondary-green" style="color: var(--secondary-green);">
+                <svg class="w-6 h-6 mb-1" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                </svg>
+                <span class="text-xs font-medium">Workshops</span>
+            </button>
+        </div>
+    </nav>
+
+    <script>
+        let currentCategory = 'all';
+        let expandedWorkshop = null;
+
+        function filterCategory(category) {
+            currentCategory = category;
+            
+            // Update button states
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById('filter' + category.charAt(0).toUpperCase() + category.slice(1)).classList.add('active');
+            
+            // Filter workshops
+            const workshops = document.querySelectorAll('.workshop-card');
+            workshops.forEach(workshop => {
+                const workshopCategory = workshop.getAttribute('data-category');
+                if (category === 'all' || workshopCategory === category) {
+                    workshop.style.display = 'block';
+                    anime({
+                        targets: workshop,
+                        opacity: [0, 1],
+                        scale: [0.9, 1],
+                        duration: 400,
+                        easing: 'easeOutExpo'
+                    });
+                } else {
+                    anime({
+                        targets: workshop,
+                        opacity: [1, 0],
+                        scale: [1, 0.9],
+                        duration: 300,
+                        easing: 'easeInExpo',
+                        complete: () => {
+                            workshop.style.display = 'none';
+                        }
+                    });
+                }
+            });
+        }
+
+        function expandWorkshop(workshopCard, workshopId) {
+            if (expandedWorkshop && expandedWorkshop !== workshopCard) {
+                // Collapse previously expanded workshop
+                const prevExpanded = expandedWorkshop.querySelector('.expanded-content');
+                expandedWorkshop.classList.remove('expanded');
+                prevExpanded.classList.remove('show');
+                anime({
+                    targets: prevExpanded,
+                    maxHeight: '0px',
+                    duration: 300,
+                    easing: 'easeInExpo'
+                });
+            }
+            
+            const expandedContent = workshopCard.querySelector('.expanded-content');
+            const isExpanded = workshopCard.classList.contains('expanded');
+            
+            if (isExpanded) {
+                // Collapse
+                workshopCard.classList.remove('expanded');
+                expandedContent.classList.remove('show');
+                expandedWorkshop = null;
+                anime({
+                    targets: expandedContent,
+                    maxHeight: '0px',
+                    duration: 300,
+                    easing: 'easeInExpo'
+                });
+            } else {
+                // Expand
+                workshopCard.classList.add('expanded');
+                expandedContent.classList.add('show');
+                expandedWorkshop = workshopCard;
+                anime({
+                    targets: expandedContent,
+                    maxHeight: '500px',
+                    duration: 400,
+                    easing: 'easeOutExpo'
+                });
+            }
+        }
+
+        function openBookingModal(workshopId) {
+            const workshopData = {
+                terrarium: {
+                    title: 'Miniature Ecosystems Workshop',
+                    price: 35,
+                    time: 'Saturday 10:30 AM - 12:00 PM',
+                    instructor: 'Maria Johnson'
+                },
+                illustration: {
+                    title: 'Botanical Illustration Workshop',
+                    price: 45,
+                    time: 'Saturday 2:00 PM - 4:00 PM',
+                    instructor: 'Dr. Anna Smith'
+                },
+                identification: {
+                    title: 'Plant ID Masterclass',
+                    price: 30,
+                    time: 'Sunday 10:00 AM - 12:00 PM',
+                    instructor: 'Dr. Robert Chen'
+                },
+                herbs: {
+                    title: 'Herb Garden Design',
+                    price: 25,
+                    time: 'Sunday 1:30 PM - 3:00 PM',
+                    instructor: 'Lisa Wang'
+                },
+                meditation: {
+                    title: 'Nature Meditation',
+                    price: 20,
+                    time: 'Saturday 8:00 AM - 9:00 AM',
+                    instructor: 'Sarah Miller'
+                },
+                seeds: {
+                    title: 'Seed Saving Techniques',
+                    price: 28,
+                    time: 'Sunday 3:00 PM - 4:30 PM',
+                    instructor: 'James Davis'
+                }
+            };
+            
+            const workshop = workshopData[workshopId];
+            const modalContent = document.getElementById('modalContent');
+            
+            modalContent.innerHTML = `
+                <div class="mb-6">
+                    <h4 class="font-semibold text-lg mb-2">${workshop.title}</h4>
+                    <p class="text-sm text-gray-600 mb-1">${workshop.time}</p>
+                    <p class="text-sm text-gray-600 mb-1">Instructor: ${workshop.instructor}</p>
+                    <p class="text-lg font-semibold" style="color: var(--secondary-green);">$${workshop.price}</p>
+                </div>
+                
+                <form id="bookingForm" onsubmit="submitBooking(event, '${workshopId}')">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2" style="color: var(--primary-green);">Full Name *</label>
+                            <input type="text" name="name" required class="form-input w-full" placeholder="Enter your full name">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-2" style="color: var(--primary-green);">Email Address *</label>
+                            <input type="email" name="email" required class="form-input w-full" placeholder="your.email@example.com">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-2" style="color: var(--primary-green);">Phone Number</label>
+                            <input type="tel" name="phone" class="form-input w-full" placeholder="(555) 123-4567">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-2" style="color: var(--primary-green);">Experience Level</label>
+                            <select name="experience" class="form-input w-full">
+                                <option value="beginner">Beginner</option>
+                                <option value="intermediate">Intermediate</option>
+                                <option value="advanced">Advanced</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-2" style="color: var(--primary-green);">Special Requirements</label>
+                            <textarea name="requirements" rows="3" class="form-input w-full" placeholder="Any dietary restrictions, accessibility needs, or other requirements..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4 mt-6">
+                        <button type="button" class="btn-secondary flex-1 py-3 rounded-lg font-medium" onclick="closeBookingModal()">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn-primary flex-1 py-3 rounded-lg font-medium">
+                            Confirm Booking
+                        </button>
+                    </div>
+                </form>
+            `;
+            
+            document.getElementById('bookingModal').classList.remove('hidden');
+            document.getElementById('bookingModal').classList.add('flex');
+            
+            anime({
+                targets: '.modal-content',
+                scale: [0.8, 1],
+                opacity: [0, 1],
+                duration: 300,
+                easing: 'easeOutExpo'
+            });
+        }
+
+        function closeBookingModal() {
+            anime({
+                targets: '.modal-content',
+                scale: [1, 0.8],
+                opacity: [1, 0],
+                duration: 200,
+                easing: 'easeInExpo',
+                complete: () => {
+                    document.getElementById('bookingModal').classList.add('hidden');
+                    document.getElementById('bookingModal').classList.remove('flex');
+                }
+            });
+        }
+
+        function submitBooking(event, workshopId) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const bookingData = {
+                workshop: workshopId,
+                name: formData.get('name'),
+                email: formData.get('email'),
+                phone: formData.get('phone'),
+                experience: formData.get('experience'),
+                requirements: formData.get('requirements')
+            };
+            
+            // Simulate booking process
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+            
+            setTimeout(() => {
+                closeBookingModal();
+                showNotification(`Booking confirmed for ${bookingData.name}! Check your email for details.`, 'success');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirm Booking';
+            }, 2000);
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animate workshop cards on load
+            anime({
+                targets: '.workshop-card',
+                opacity: [0, 1],
+                translateY: [30, 0],
+                duration: 600,
+                delay: anime.stagger(100),
+                easing: 'easeOutExpo'
+            });
+        });
+
+        // Navigation function
+        function navigateTo(page) {
+            anime({
+                targets: 'body',
+                opacity: [1, 0.8],
+                duration: 300,
+                easing: 'easeOutQuad',
+                complete: function() {
+                    window.location.href = page;
+                }
+            });
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg text-white max-w-sm ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 
+                'bg-blue-500'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            anime({
+                targets: notification,
+                translateX: [300, 0],
+                opacity: [0, 1],
+                duration: 300,
+                easing: 'easeOutExpo'
+            });
+            
+            setTimeout(() => {
+                anime({
+                    targets: notification,
+                    translateX: [0, 300],
+                    opacity: [1, 0],
+                    duration: 300,
+                    easing: 'easeInExpo',
+                    complete: () => {
+                        document.body.removeChild(notification);
+                    }
+                });
+            }, 4000);
+        }
+    </script>
+</body>
+</html>

@@ -1,9 +1,400 @@
-<html>
-  <body>
-    <p>Eman Smart Intelligent v1.0</p>
-      
-    <h1>- Intelligence meets humanity</h1>
-     <a href="pointcloud.html">Point Cloud</a>
-     <a href="point1.html">Point Cloud #1</a>
-  </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garden Festival Weekend - Botanical Garden</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-green: #2D5016;
+            --secondary-green: #4A7C59;
+            --accent-green: #8FBC8F;
+            --earth-tone: #8B7355;
+            --cream: #F5F5DC;
+            --white: #FFFFFF;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #F5F5DC 0%, #E8E8D3 100%);
+            min-height: 100vh;
+        }
+        
+        .hero-title {
+            font-family: 'Playfair Display', serif;
+            background: linear-gradient(45deg, #2D5016, #4A7C59, #8FBC8F);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 4s ease-in-out infinite;
+        }
+        
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .accent-text {
+            font-family: 'Crimson Text', serif;
+            color: var(--earth-tone);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(45, 80, 22, 0.15);
+        }
+        
+        .btn-primary {
+            background: var(--secondary-green);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-green);
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            border: 2px solid var(--earth-tone);
+            color: var(--earth-tone);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: var(--earth-tone);
+            color: white;
+        }
+        
+        .floating-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .content-overlay {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .image-scroll {
+            animation: scrollHorizontal 20s linear infinite;
+        }
+        
+        @keyframes scrollHorizontal {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        
+        .quiz-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(139, 115, 85, 0.2);
+        }
+        
+        .nav-bottom {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(139, 115, 85, 0.2);
+        }
+        
+        .hero-image {
+            object-fit: cover;
+            object-position: center;
+        }
+        
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+                line-height: 1.2;
+            }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+    <!-- Hero Section -->
+    <section class="relative min-h-screen flex flex-col">
+        <!-- Background Image -->
+        <div class="absolute inset-0 z-0">
+            <img src="resources/hero-conservatory.png" alt="Botanical Conservatory" class="w-full h-full hero-image">
+            <div class="absolute inset-0 bg-black bg-opacity-30"></div>
+        </div>
+        
+        <!-- Floating Particles -->
+        <div id="particles" class="floating-particles"></div>
+        
+        <!-- Hero Content -->
+        <div class="relative z-10 flex-1 flex flex-col justify-center items-center text-center px-4 py-8">
+            <div class="max-w-4xl mx-auto">
+                <h1 class="hero-title text-4xl md:text-6xl font-bold mb-6 opacity-0" id="heroTitle">
+                    Garden Festival Weekend
+                </h1>
+                <p class="accent-text text-xl md:text-2xl mb-8 opacity-0" id="heroSubtitle">
+                    Discover the magic of botanical gardens through hands-on workshops, expert talks, and family adventures
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center opacity-0" id="heroButtons">
+                    <button class="btn-primary px-8 py-4 rounded-full text-lg font-semibold" onclick="navigateTo('schedule.html')">
+                        View Schedule
+                    </button>
+                    <button class="btn-secondary px-8 py-4 rounded-full text-lg font-semibold" onclick="navigateTo('workshops.html')">
+                        Book Workshops
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Scroll Indicator -->
+        <div class="relative z-10 text-center pb-8">
+            <div class="animate-bounce">
+                <svg class="w-6 h-6 mx-auto text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                </svg>
+            </div>
+        </div>
+    </section>
+
+    <!-- Festival Overview -->
+    <section class="py-16 px-4">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-primary-green mb-4" style="color: var(--primary-green);">
+                    A Weekend of Botanical Wonder
+                </h2>
+                <p class="accent-text text-lg max-w-3xl mx-auto">
+                    Join us for an unforgettable weekend celebrating the beauty and science of plants. 
+                    From hands-on workshops to expert lectures, discover the fascinating world of botany 
+                    in our stunning garden setting.
+                </p>
+            </div>
+            
+            <!-- Festival Highlights -->
+            <div class="grid md:grid-cols-3 gap-8 mb-16">
+                <div class="card-hover bg-white rounded-2xl p-6 shadow-lg">
+                    <div class="w-16 h-16 bg-accent-green rounded-full flex items-center justify-center mb-4 mx-auto">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-center mb-3" style="color: var(--primary-green);">Expert Workshops</h3>
+                    <p class="text-center text-gray-600">
+                        Learn from renowned botanists, horticulturists, and artists in hands-on sessions
+                    </p>
+                </div>
+                
+                <div class="card-hover bg-white rounded-2xl p-6 shadow-lg">
+                    <div class="w-16 h-16 bg-secondary-green rounded-full flex items-center justify-center mb-4 mx-auto">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-center mb-3" style="color: var(--primary-green);">Garden Tours</h3>
+                    <p class="text-center text-gray-600">
+                        Explore our diverse plant collections with expert guides sharing fascinating stories
+                    </p>
+                </div>
+                
+                <div class="card-hover bg-white rounded-2xl p-6 shadow-lg">
+                    <div class="w-16 h-16 bg-earth-tone rounded-full flex items-center justify-center mb-4 mx-auto" style="background-color: var(--earth-tone);">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1.5a2.5 2.5 0 010 5H9m4.5-5H15a2.5 2.5 0 010 5h-1.5m-5-5v5m5-5v5"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-center mb-3" style="color: var(--primary-green);">Family Fun</h3>
+                    <p class="text-center text-gray-600">
+                        Engaging activities for all ages, from plant quizzes to nature crafts
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Schedule Preview -->
+    <section class="py-16 px-4 bg-white">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl md:text-4xl font-bold text-center mb-12" style="color: var(--primary-green);">
+                Weekend Schedule Preview
+            </h2>
+            
+            <!-- Horizontal Scrolling Schedule -->
+            <div class="splide" id="schedulePreview">
+                <div class="splide__track">
+                    <ul class="splide__list">
+                        <li class="splide__slide">
+                            <div class="bg-gradient-to-br from-accent-green to-secondary-green rounded-2xl p-6 text-white mx-2">
+                                <div class="text-sm opacity-90 mb-2">Saturday, 9:00 AM</div>
+                                <h3 class="text-xl font-semibold mb-3">Opening Ceremony</h3>
+                                <p class="text-sm opacity-90">Welcome to the festival with botanical highlights and weekend overview</p>
+                            </div>
+                        </li>
+                        <li class="splide__slide">
+                            <div class="bg-gradient-to-br from-secondary-green to-primary-green rounded-2xl p-6 text-white mx-2">
+                                <div class="text-sm opacity-90 mb-2">Saturday, 10:30 AM</div>
+                                <h3 class="text-xl font-semibold mb-3">Terrarium Workshop</h3>
+                                <p class="text-sm opacity-90">Create your own miniature ecosystem with expert guidance</p>
+                            </div>
+                        </li>
+                        <li class="splide__slide">
+                            <div class="bg-gradient-to-br from-earth-tone to-secondary-green rounded-2xl p-6 text-white mx-2" style="background: linear-gradient(135deg, var(--earth-tone), var(--secondary-green));">
+                                <div class="text-sm opacity-90 mb-2">Saturday, 2:00 PM</div>
+                                <h3 class="text-xl font-semibold mb-3">Botanical Art Class</h3>
+                                <p class="text-sm opacity-90">Learn traditional botanical illustration techniques</p>
+                            </div>
+                        </li>
+                        <li class="splide__slide">
+                            <div class="bg-gradient-to-br from-accent-green to-earth-tone rounded-2xl p-6 text-white mx-2" style="background: linear-gradient(135deg, var(--accent-green), var(--earth-tone));">
+                                <div class="text-sm opacity-90 mb-2">Sunday, 10:00 AM</div>
+                                <h3 class="text-xl font-semibold mb-3">Plant Identification Walk</h3>
+                                <p class="text-sm opacity-90">Discover the secrets of plant classification and identification</p>
+                            </div>
+                        </li>
+                        <li class="splide__slide">
+                            <div class="bg-gradient-to-br from-secondary-green to-accent-green rounded-2xl p-6 text-white mx-2">
+                                <div class="text-sm opacity-90 mb-2">Sunday, 1:30 PM</div>
+                                <h3 class="text-xl font-semibold mb-3">Children's Nature Crafts</h3>
+                                <p class="text-sm opacity-90">Fun activities for young botanists and nature lovers</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="text-center mt-8">
+                <button class="btn-primary px-8 py-3 rounded-full font-semibold" onclick="navigateTo('schedule.html')">
+                    View Full Schedule
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Featured Workshops -->
+    <section class="py-16 px-4">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl md:text-4xl font-bold text-center mb-12" style="color: var(--primary-green);">
+                Featured Workshops
+            </h2>
+            
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-lg">
+                    <img src="resources/workshop-terrarium.png" alt="Terrarium Workshop" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--primary-green);">Miniature Ecosystems</h3>
+                        <p class="text-gray-600 mb-4">Create beautiful terrariums while learning about plant ecology and ecosystem balance.</p>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500">Saturday 10:30 AM</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm" onclick="navigateTo('workshops.html')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-lg">
+                    <img src="https://kimi-web-img.moonshot.cn/img/www.chicagobotanic.org/a205cd17ad1d090264b3bcb9746dc244100c7a5a.jpg" alt="Botanical Art" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--primary-green);">Botanical Illustration</h3>
+                        <p class="text-gray-600 mb-4">Master the art of scientific plant drawing using traditional techniques and materials.</p>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500">Saturday 2:00 PM</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm" onclick="navigateTo('workshops.html')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-lg">
+                    <img src="https://kimi-web-img.moonshot.cn/img/queensbotanical.org/fbe519761e2ecb9f6ca4a72e51be29b92cb8bb47.jpg" alt="Plant Identification" class="w-full h-48 object-cover">
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--primary-green);">Plant ID Masterclass</h3>
+                        <p class="text-gray-600 mb-4">Learn to identify plants using scientific methods and botanical characteristics.</p>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-500">Sunday 10:00 AM</span>
+                            <button class="btn-primary px-4 py-2 rounded-full text-sm" onclick="navigateTo('workshops.html')">
+                                Book Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Plant Quiz -->
+    <section class="py-16 px-4 bg-white">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-6" style="color: var(--primary-green);">
+                    Test Your Plant Knowledge
+                </h2>
+                <p class="accent-text text-lg">
+                    Take our interactive quiz and discover fascinating facts about the plant kingdom
+                </p>
+            </div>
+            
+            <div class="quiz-card rounded-2xl p-8">
+                <div id="quizContent">
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-accent-green rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-2xl font-semibold mb-4" style="color: var(--primary-green);">Ready to Explore?</h3>
+                        <p class="text-gray-600 mb-6">
+                            Our plant identification quiz will challenge your knowledge and teach you amazing facts about botanical diversity.
+                        </p>
+                        <button class="btn-primary px-8 py-3 rounded-full font-semibold" onclick="startQuiz()">
+                            Start Plant Quiz
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bottom Navigation -->
+    <nav class="nav-bottom fixed bottom-0 left-0 right-0 z-50">
+        <div class="flex justify-around items-center py-3">
+            <button class="flex flex-col items-center p-2 text-secondary-green" onclick="navigateTo('index.html')" style="color: var(--secondary-green);">
+                <svg class="w-6 h-6 mb-1" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                </svg>
+                <span class="text-xs font-medium">Home</span>
+            </button>
+            <button class="flex flex-col items-center p-2 text-gray-500" onclick="navigateTo('schedule.html')">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-xs font-medium">Schedule</span>
+            </button>
+            <button class="flex flex-col items-center p-2 text-gray-500" onclick="navigateTo('workshops.html')">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                </svg>
+                <span class="text-xs font-medium">Workshops</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Spacer for bottom navigation -->
+    <div class="h-20"></div>
+
+    <script src="main.js"></script>
+</body>
 </html>
