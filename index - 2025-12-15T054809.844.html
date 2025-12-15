@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Greg-Tech v12.1 // Mobile Modal</title>
+    <style>
+        :root {
+            --accent: #3474A4;
+            --accent-active: #F5B495;
+            --bg-body: #12121a;
+            --bg-panel: rgba(25, 30, 40, 0.98);
+            --text-main: #ffffff;
+            --modal-height: 160px; /* Height of the open menu */
+        }
+
+        * { 
+            box-sizing: border-box; 
+            user-select: none; 
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            height: 100dvh; width: 100vw;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            overflow: hidden;
+            touch-action: manipulation;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #app { 
+            display: flex; 
+            flex-direction: column; 
+            height: 100%; 
+            width: 100%; 
+            position: relative; 
+            overflow: hidden;
+        }
+
+        /* --- SIDEBAR --- */
+        #sidebar {
+            position: fixed; top: 0; left: 0; height: 100%; width: 260px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--accent);
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            z-index: 200;
+            display: flex; flex-direction: column;
+            box-shadow: 10px 0 50px rgba(0,0,0,0.8);
+            touch-action: pan-y;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        #sidebar.open { transform: translateX(0); }
+
+        .head-bar {
+            padding: 15px; border-bottom: 1px solid var(--accent);
+            font-weight: 800; display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0,0,0,0.2);
+            min-height: 60px;
+        }
+        
+        #grid {
+            flex: 1; overflow-y: auto; padding: 15px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .thumb {
+            height: 100px; width: 100%;
+            background: repeating-conic-gradient(#fff 0 90deg, #eee 0 180deg) 0 0/10px 10px; 
+            border: 1px solid #444; border-radius: 6px;
+            cursor: pointer; position: relative;
+            display: flex; justify-content: center; align-items: center;
+            touch-action: manipulation;
+        }
+        .thumb.active { border: 2px solid var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .thumb canvas { max-width: 90%; max-height: 90%; object-fit: contain; }
+
+        /* --- HEADER --- */
+        header {
+            flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 15px; background: var(--bg-panel); border-bottom: 1px solid var(--accent); z-index: 10;
+            min-height: 60px;
+        }
+        .logo { font-weight: 900; letter-spacing: 2px; font-size: 1.2rem; }
+        .btn {
+            background: rgba(52, 116, 164, 0.15); color: var(--accent); border: 1px solid var(--accent);
+            padding: 12px 20px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer;
+            white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+            min-height: 44px; min-width: 44px;
+            touch-action: manipulation;
+        }
+        .btn-primary { background: var(--accent); color: white; border: none; }
+        .btn-icon { font-size: 1.1em; }
+
+        /* --- VIEWPORT --- */
+        #viewport {
+            flex: 1; min-height: 0; position: relative;
+            background-color: #ffffff;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden;
+            touch-action: pan-y pinch-zoom;
+        }
+        canvas { 
+            max-width: 100%; 
+            max-height: 100%; 
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.1));
+            touch-action: none;
+        }
+
+        /* --- TOOLS OVERLAY --- */
+        #tools {
+            position: absolute;
+            top: 70px; left: 15px;
+            display: flex; flex-direction: column; gap: 10px;
+            z-index: 60;
+        }
+        .tool-btn {
+            width: 50px; height: 50px; background: var(--bg-panel);
+            border: 1px solid var(--accent); color: var(--accent);
+            border-radius: 8px; display: grid; place-items: center;
+            font-size: 1.4rem; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+            min-width: 44px; min-height: 44px;
+            touch-action: manipulation;
+        }
+        .tool-btn.active { background: var(--accent); color: white; border-color: white; transform: scale(1.1); }
+        
+        .cut-confirm {
+            background: #ff4444; color: white; border: none;
+            padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; font-weight: bold;
+            display: none; cursor: pointer; position: absolute; left: 55px; top: 0;
+            white-space: nowrap; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 70;
+            min-height: 44px; min-width: 80px;
+            touch-action: manipulation;
+        }
+
+        /* --- BOTTOM MODAL (New) --- */
+        #bottom-modal {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: var(--bg-panel);
+            border-top: 1px solid var(--accent);
+            z-index: 150;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* Initially Start Closed (pushed down) */
+            transform: translateY(100%); 
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+            pointer-events: auto;
+        }
+
+        #bottom-modal.open {
+            transform: translateY(0);
+        }
+
+        /* The little tab to open/close */
+        .modal-handle {
+            position: absolute;
+            top: -35px; left: 50%;
+            transform: translateX(-50%);
+            width: 120px; height: 35px;
+            background: var(--bg-panel);
+            border: 1px solid var(--accent);
+            border-bottom: none;
+            border-radius: 12px 12px 0 0;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+            min-height: 44px;
+            touch-action: manipulation;
+        }
+        .handle-ico {
+            width: 50px; height: 5px;
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        .modal-content {
+            padding: 15px;
+            display: flex; flex-direction: column; gap: 15px;
+            pointer-events: auto;
+        }
+
+        /* Control styling */
+        .controls-row { 
+            display: flex; 
+            gap: 10px; 
+            justify-content: center; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            touch-action: manipulation;
+        }
+        .col { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            min-width: 70px; 
+            touch-action: manipulation;
+        }
+        .lbl { 
+            font-size: 0.7rem; 
+            color: #aaa; 
+            margin-bottom: 4px; 
+            text-transform: uppercase; 
+            text-align: center;
+        }
+        .lbl-head { 
+            font-size: 0.75rem; 
+            color: var(--accent-active); 
+            font-weight: bold; 
+            margin-bottom: 8px;
+        }
+
+        input[type=range] { 
+            -webkit-appearance: none; 
+            width: 100px; 
+            height: 6px; 
+            background: #444; 
+            border-radius: 3px; 
+            margin: 10px 0;
+            touch-action: manipulation;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; 
+            width: 24px; 
+            height: 24px; 
+            background: var(--accent);
+            border-radius: 50%; 
+            border: 2px solid white; 
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        input[type=checkbox] {
+            width: 24px;
+            height: 24px;
+            margin: 10px 0;
+            accent-color: var(--accent);
+        }
+
+        /* Status Overlay */
+        #status-overlay {
+            position: absolute; inset: 0; background: rgba(255,255,255,0.95);
+            display: flex; justify-content: center; align-items: center; color: var(--accent); font-weight: bold;
+            z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            font-size: 1.2rem;
+        }
+        #status-overlay.active { opacity: 1; pointer-events: all; }
+
+        /* Mobile-safe file input hiding */
+        .file-hidden {
+            position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;
+        }
+        .ico { font-style: normal; }
+
+        /* Mobile-specific improvements */
+        @media (max-width: 768px) {
+            .btn { padding: 10px 16px; font-size: 0.8rem; }
+            .tool-btn { width: 44px; height: 44px; font-size: 1.2rem; }
+            .controls-row { gap: 8px; }
+            .col { min-width: 60px; }
+            input[type=range] { width: 80px; }
+        }
+
+        /* Prevent text selection on mobile */
+        .no-select {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+    </style>
+</head>
+<body class="no-select">
+
+<div id="app">
+    <header>
+        <button class="btn" onclick="toggleSidebar()" aria-label="Toggle sidebar">☰ LIST</button>
+        <div class="logo">GREG<span style="color:var(--accent)">.v12</span></div>
+
+        <button class="btn btn-primary" onclick="triggerUpload()" aria-label="Upload image">
+            <span class="ico">↥</span> UPLOAD
+        </button>
+        <input type="file" id="upload" class="file-hidden" accept="image/*" capture="environment">
+    </header>
+
+    <div id="sidebar">
+        <div class="head-bar">
+            <span>LIBRARY</span>
+            <div class="btn" onclick="toggleSidebar()">CLOSE</div>
+        </div>
+        <div id="grid">
+            <div style="grid-column:span 2; padding:30px; text-align:center; opacity:0.5; font-size:0.8rem;">NO IMAGES</div>
+        </div>
+    </div>
+
+    <div id="tools">
+        <div style="position:relative;">
+            <div class="tool-btn" id="btn-rect" onclick="setMode('rect')" title="Box Cut" aria-label="Box cut tool">▧</div>
+            <button id="btn-cut-confirm" class="cut-confirm" onclick="performCut()">CUT NOW</button>
+        </div>
+        <div class="tool-btn" id="btn-lasso" onclick="setMode('lasso')" title="Freehand Cut" aria-label="Freehand cut tool">✎</div>
+        <div class="tool-btn" onclick="resetActiveSprite()" title="Reset Sprite" aria-label="Reset sprite">↺</div>
+        <div class="tool-btn" onclick="downloadSprite()" style="margin-top:20px; border-color:#fff;" title="Download" aria-label="Download sprite">⇩</div>
+    </div>
+
+    <div id="viewport">
+        <canvas id="main-canvas"></canvas>
+        <div id="status-overlay">PROCESSING...</div>
+    </div>
+
+    <div id="bottom-modal">
+        <div class="modal-handle" onclick="toggleModal()" title="Toggle Menu" aria-label="Toggle controls menu">
+            <div class="handle-ico"></div>
+        </div>
+        
+        <div class="modal-content">
+            <div class="controls-row" style="border-bottom:1px solid #333; padding-bottom:10px;">
+                <span class="lbl-head">GLOBAL:</span>
+                <div class="col">
+                    <span class="lbl">Rotate</span>
+                    <input type="range" id="g-rot" min="-180" max="180" value="0" aria-label="Global rotation">
+                </div>
+                <div class="col">
+                    <span class="lbl">Flip X</span>
+                    <input type="checkbox" id="g-flip" aria-label="Flip horizontally">
+                </div>
+            </div>
+            
+            <div class="controls-row">
+                <span class="lbl-head" style="color:#aaa;">PART:</span>
+                <div class="col">
+                    <span class="lbl">Pos X/Y</span>
+                    <div style="font-size:0.6rem; color:#666;">(Drag)</div>
+                </div>
+                <div class="col">
+                    <span class="lbl">Rotate</span>
+                    <input type="range" id="p-rot" min="-180" max="180" value="0" aria-label="Part rotation">
+                </div>
+                <div class="col">
+                    <span class="lbl">Stretch X</span>
+                    <input type="range" id="p-sx" min="0.5" max="2.0" step="0.05" value="1.0" aria-label="Stretch X">
+                </div>
+                <div class="col">
+                    <span class="lbl">Stretch Y</span>
+                    <input type="range" id="p-sy" min="0.5" max="2.0" step="0.05" value="1.0" aria-label="Stretch Y">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- STATE ---
+    const STATE = {
+        sprites: [],
+        activeSpriteIdx: -1,
+        selectedPartIdx: -1, 
+        
+        mode: 'none', 
+        
+        // Global Transforms
+        globalRot: 0,
+        globalFlip: false,
+
+        // Interaction
+        isDragging: false,
+        lastPointer: {x:0, y:0},
+        initialTouchDistance: 0,
+        isMultiTouch: false,
+
+        // UI State
+        isModalOpen: false
+    };
+
+    const CONFIG = { anchorColor: '#FFFF00', bgThreshold: 240 };
+
+    // --- DOM ---
+    const cvs = document.getElementById('main-canvas');
+    const ctx = cvs.getContext('2d');
+    const sidebar = document.getElementById('sidebar');
+    const confirmBtn = document.getElementById('btn-cut-confirm');
+    const modal = document.getElementById('bottom-modal');
+    
+    // Inputs
+    const ui = {
+        gRot: document.getElementById('g-rot'),
+        gFlip: document.getElementById('g-flip'),
+        pRot: document.getElementById('p-rot'),
+        pSx: document.getElementById('p-sx'),
+        pSy: document.getElementById('p-sy')
+    };
+
+    // --- INIT ---
+    function init() {
+        resize();
+        window.addEventListener('resize', () => { 
+            resize(); 
+            draw(); 
+        }, { passive: true });
+        
+        // Upload Listener - Fixed for mobile
+        const upInput = document.getElementById('upload');
+        upInput.addEventListener('change', handleUpload);
+        upInput.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+
+        // Global Controls
+        ui.gRot.addEventListener('input', e => { 
+            STATE.globalRot = parseInt(e.target.value); 
+            draw(); 
+        }, { passive: true });
+        
+        ui.gFlip.addEventListener('change', e => { 
+            STATE.globalFlip = e.target.checked; 
+            draw(); 
+        }, { passive: true });
+
+        // Part Controls
+        ui.pRot.addEventListener('input', updatePart, { passive: true });
+        ui.pSx.addEventListener('input', updatePart, { passive: true });
+        ui.pSy.addEventListener('input', updatePart, { passive: true });
+
+        // Touch/Mouse Events - Fixed handlers
+        setupCanvasEvents();
+        
+        // Prevent pull-to-refresh
+        document.addEventListener('touchmove', function(e) {
+            if(e.scale !== 1) { e.preventDefault(); }
+        }, { passive: false });
+        
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('touchstart', function(e) {
+            if (sidebar.classList.contains('open') && 
+                !sidebar.contains(e.target) && 
+                e.target.id !== 'sidebar-toggle') {
+                toggleSidebar();
+            }
+        }, { passive: true });
+        
+        // Auto-open modal on first image load for better UX
+        if (!localStorage.getItem('modalTutorialShown')) {
+            setTimeout(() => {
+                if (!STATE.isModalOpen) {
+                    toggleModal();
+                }
+            }, 1000);
+            localStorage.setItem('modalTutorialShown', 'true');
+        }
+    }
+
+    function setupCanvasEvents() {
+        // Mouse events
+        cvs.addEventListener('mousedown', handlePointerStart);
+        document.addEventListener('mousemove', handlePointerMove);
+        document.addEventListener('mouseup', handlePointerEnd);
+        
+        // Touch events with proper prevention
+        cvs.addEventListener('touchstart', handleTouchStart, { passive: false });
+        document.addEventListener('touchmove', handleTouchMove, { passive: false });
+        document.addEventListener('touchend', handleTouchEnd, { passive: false });
+        document.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+        
+        // Prevent context menu on long press
+        cvs.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    function handleTouchStart(e) {
+        if (e.touches.length === 1) {
+            e.preventDefault();
+            handlePointerStart(e.touches[0]);
+            STATE.isMultiTouch = false;
+        } else if (e.touches.length === 2) {
+            e.preventDefault();
+            STATE.isMultiTouch = true;
+            STATE.initialTouchDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        }
+    }
+
+    function handleTouchMove(e) {
+        if (e.touches.length === 1 && STATE.isDragging && !STATE.isMultiTouch) {
+            e.preventDefault();
+            handlePointerMove(e.touches[0]);
+        } else if (e.touches.length === 2) {
+            e.preventDefault();
+            // Handle pinch zoom if needed
+        }
+    }
+
+    function handleTouchEnd(e) {
+        e.preventDefault();
+        handlePointerEnd(e.changedTouches[0]);
+        STATE.isMultiTouch = false;
+    }
+
+    function handlePointerStart(e) {
+        const rect = cvs.getBoundingClientRect();
+        const scaleX = cvs.width / rect.width;
+        const scaleY = cvs.height / rect.height;
+        
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        STATE.isDragging = true;
+        STATE.lastPointer = {x, y};
+
+        const partIdx = hitTestPart(x, y);
+        STATE.selectedPartIdx = partIdx;
+
+        if (partIdx >= 0) {
+            confirmBtn.style.display = 'none';
+            draw();
+        }
+        
+        // Update UI controls for selected part
+        if (STATE.activeSpriteIdx >= 0 && partIdx >= 0) {
+            const s = STATE.sprites[STATE.activeSpriteIdx];
+            const p = s.parts[partIdx];
+            ui.pRot.value = p.rot;
+            ui.pSx.value = p.sx;
+            ui.pSy.value = p.sy;
+        }
+    }
+
+    function handlePointerMove(e) {
+        if (!STATE.isDragging || STATE.activeSpriteIdx < 0 || STATE.selectedPartIdx < 0) return;
+
+        const rect = cvs.getBoundingClientRect();
+        const scaleX = cvs.width / rect.width;
+        const scaleY = cvs.height / rect.height;
+        
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        const dx = x - STATE.lastPointer.x;
+        const dy = y - STATE.lastPointer.y;
+        STATE.lastPointer = {x, y};
+
+        const s = STATE.sprites[STATE.activeSpriteIdx];
+        const p = s.parts[STATE.selectedPartIdx];
+
+        p.x += dx;
+        p.y += dy;
+
+        draw();
+    }
+
+    function handlePointerEnd(e) {
+        STATE.isDragging = false;
+        STATE.isMultiTouch = false;
+    }
+
+    function getTouchDistance(touch1, touch2) {
+        const dx = touch1.clientX - touch2.clientX;
+        const dy = touch1.clientY - touch2.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function resize() {
+        const parent = cvs.parentElement;
+        cvs.width = parent.clientWidth;
+        cvs.height = parent.clientHeight;
+        draw();
+    }
+
+    // --- UI FUNCTIONS ---
+    function toggleSidebar() { 
+        sidebar.classList.toggle('open'); 
+    }
+    
+    function toggleModal() {
+        STATE.isModalOpen = !STATE.isModalOpen;
+        if (STATE.isModalOpen) {
+            modal.classList.add('open');
+        } else {
+            modal.classList.remove('open');
+        }
+    }
+
+    function triggerUpload() {
+        // Mobile-safe file upload trigger
+        const input = document.getElementById('upload');
+        
+        // Reset input to allow same file selection
+        input.value = '';
+        
+        // Create a temporary click event
+        const event = new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: true
+        });
+        
+        // Dispatch the event
+        setTimeout(() => {
+            input.dispatchEvent(event);
+        }, 100);
+        
+        // For iOS, we need to ensure the input is in the DOM and visible
+        input.style.display = 'block';
+        input.style.position = 'fixed';
+        input.style.top = '0';
+        input.style.left = '0';
+        input.style.width = '100%';
+        input.style.height = '100%';
+        input.style.opacity = '0';
+        
+        setTimeout(() => {
+            input.style.display = 'none';
+        }, 1000);
+    }
+
+    function setStatus(msg) { 
+        const el = document.getElementById('status-overlay');
+        if (msg) {
+            el.classList.add('active');
+            el.innerText = msg;
+        } else {
+            el.classList.remove('active');
+        }
+    }
+    
+    function setMode(m) {
+        STATE.mode = (STATE.mode === m) ? 'none' : m;
+        document.getElementById('btn-rect').classList.toggle('active', STATE.mode==='rect');
+        document.getElementById('btn-lasso').classList.toggle('active', STATE.mode==='lasso');
+        confirmBtn.style.display = STATE.mode !== 'none' ? 'block' : 'none';
+        STATE.selectedPartIdx = -1;
+        draw();
+    }
+
+    // --- UPLOAD & PROCESSING ---
+    function handleUpload(e) {
+        if (!e.target.files || !e.target.files[0]) return;
+        
+        // Open modal automatically for better UX
+        if (!STATE.isModalOpen) {
+            toggleModal();
+        }
+
+        setStatus("LOADING...");
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                setTimeout(() => processImage(img), 100);
+            };
+            img.onerror = function() {
+                setStatus(null);
+                alert("Failed to load image. Please try another file.");
+            };
+            img.src = event.target.result;
+        };
+        reader.onerror = function() {
+            setStatus(null);
+            alert("Failed to read file. Please try again.");
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    }
+
+    async function processImage(img) {
+        try {
+            const candidates = detectCandidates(img);
+            if (!candidates.length) {
+                throw new Error("No sprites found. Try an image with a clear white background.");
+            }
+            
+            STATE.sprites = [];
+            for (let box of candidates) {
+                const s = await createEditableSprite(img, box);
+                if (s) STATE.sprites.push(s);
+            }
+            
+            updateSidebar();
+            if (STATE.sprites.length) {
+                selectSprite(0);
+                // Auto-open modal for first-time users
+                if (!STATE.isModalOpen && STATE.sprites.length > 0) {
+                    setTimeout(() => toggleModal(), 500);
+                }
+            }
+            setStatus(null);
+        } catch(e) { 
+            console.error(e);
+            alert("Error: " + e.message); 
+            setStatus(null); 
+        }
+    }
+
+    // --- DETECTION & CLEANING ---
+    function detectCandidates(img) {
+        const w = img.width, h = img.height;
+        const c = document.createElement('canvas'); 
+        c.width = w; 
+        c.height = h;
+        const cx = c.getContext('2d'); 
+        cx.drawImage(img, 0, 0);
+        
+        const d = cx.getImageData(0, 0, w, h).data;
+        const map = new Uint8Array(w * h);
+        
+        for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] > 50 && (d[i] + d[i + 1] + d[i + 2]) / 3 < CONFIG.bgThreshold) {
+                map[i / 4] = 1;
+            }
+        }
+        
+        const boxes = [];
+        const seen = new Uint8Array(w * h);
+        const q = [];
+        
+        for (let i = 0; i < map.length; i++) {
+            if (!map[i] || seen[i]) continue;
+            
+            let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
+            q.push(i); 
+            seen[i] = 1;
+            
+            while (q.length) {
+                const idx = q.pop();
+                const x = idx % w;
+                const y = Math.floor(idx / w);
+                count++;
+                
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+                
+                const neighbors = [idx - 1, idx + 1, idx - w, idx + w];
+                for (const ni of neighbors) {
+                    if (ni < 0 || ni >= map.length || seen[ni] || !map[ni]) continue;
+                    seen[ni] = 1;
+                    q.push(ni);
+                }
+            }
+            
+            if (count > 250) {
+                boxes.push({
+                    x: minX,
+                    y: minY,
+                    w: (maxX - minX + 1),
+                    h: (maxY - minY + 1)
+                });
+            }
+        }
+        
+        return boxes;
+    }
+
+    async function createEditableSprite(img, box) {
+        const c = document.createElement('canvas'); 
+        c.width = box.w; 
+        c.height = box.h;
+        const cx = c.getContext('2d'); 
+        cx.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+
+        const id = cx.getImageData(0, 0, box.w, box.h);
+        const d = id.data;
+        
+        for (let i = 0; i < d.length; i += 4) {
+            const a = d[i + 3];
+            if (a < 10) { 
+                d[i + 3] = 0; 
+                continue; 
+            }
+            const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+            if (avg > CONFIG.bgThreshold) d[i + 3] = 0;
+        }
+        
+        cx.putImageData(id, 0, 0);
+
+        return {
+            canvas: c,
+            parts: [{
+                canvas: c,
+                x: 0, 
+                y: 0,
+                rot: 0, 
+                sx: 1, 
+                sy: 1
+            }],
+            anchor: {x: box.w / 2, y: box.h / 2},
+            bbox: box
+        };
+    }
+
+    function updateSidebar() {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        
+        if (!STATE.sprites.length) {
+            grid.innerHTML = `
+                <div style="grid-column:span 2; padding:30px; text-align:center; opacity:0.5; font-size:0.8rem;">
+                    NO IMAGES<br>
+                    <small>Tap UPLOAD to add images</small>
+                </div>`;
+            return;
+        }
+
+        STATE.sprites.forEach((s, idx) => {
+            const el = document.createElement('div');
+            el.className = 'thumb' + (idx === STATE.activeSpriteIdx ? ' active' : '');
+            el.setAttribute('role', 'button');
+            el.setAttribute('aria-label', `Select sprite ${idx + 1}`);
+            
+            const tC = document.createElement('canvas');
+            tC.width = 64; 
+            tC.height = 64;
+            const tX = tC.getContext('2d');
+            tX.clearRect(0, 0, 64, 64);
+            tX.drawImage(s.canvas, 0, 0, s.canvas.width, s.canvas.height, 0, 0, 64, 64);
+            
+            el.appendChild(tC);
+            el.onclick = () => selectSprite(idx);
+            el.ontouchstart = (e) => {
+                e.preventDefault();
+                selectSprite(idx);
+            };
+            
+            grid.appendChild(el);
+        });
+    }
+
+    function selectSprite(idx) {
+        STATE.activeSpriteIdx = idx;
+        STATE.selectedPartIdx = -1;
+        updateSidebar();
+        
+        // Update part controls
+        if (STATE.activeSpriteIdx >= 0) {
+            const s = STATE.sprites[STATE.activeSpriteIdx];
+            if (s.parts.length > 0) {
+                const p = s.parts[0];
+                ui.pRot.value = p.rot;
+                ui.pSx.value = p.sx;
+                ui.pSy.value = p.sy;
+            }
+        }
+        
+        draw();
+    }
+
+    function resetActiveSprite() {
+        if (STATE.activeSpriteIdx < 0) return;
+        
+        const s = STATE.sprites[STATE.activeSpriteIdx];
+        s.parts.forEach(p => { 
+            p.x = 0; 
+            p.y = 0; 
+            p.rot = 0; 
+            p.sx = 1; 
+            p.sy = 1; 
+        });
+        
+        STATE.globalRot = 0;
+        STATE.globalFlip = false;
+        ui.gRot.value = 0;
+        ui.gFlip.checked = false;
+        
+        // Update part controls
+        ui.pRot.value = 0;
+        ui.pSx.value = 1;
+        ui.pSy.value = 1;
+        
+        draw();
+    }
+
+    function downloadSprite() {
+        if (STATE.activeSpriteIdx < 0) {
+            alert("No sprite to download. Please upload an image first.");
+            return;
+        }
+        
+        const s = STATE.sprites[STATE.activeSpriteIdx];
+        const out = document.createElement('canvas');
+        out.width = s.canvas.width;
+        out.height = s.canvas.height;
+        const ox = out.getContext('2d');
+        ox.clearRect(0, 0, out.width, out.height);
+        
+        renderSprite(ox, s, false);
+        
+        // Create download link
+        const a = document.createElement('a');
+        a.download = 'sprite-' + Date.now() + '.png';
+        a.href = out.toDataURL('image/png');
+        
+        // Trigger download
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        // Show feedback
+        setStatus("DOWNLOADED!");
+        setTimeout(() => setStatus(null), 1000);
+    }
+
+    function updatePart() {
+        if (STATE.activeSpriteIdx < 0 || STATE.selectedPartIdx < 0) return;
+        
+        const p = STATE.sprites[STATE.activeSpriteIdx].parts[STATE.selectedPartIdx];
+        p.rot = parseInt(ui.pRot.value) || 0;
+        p.sx = parseFloat(ui.pSx.value) || 1.0;
+        p.sy = parseFloat(ui.pSy.value) || 1.0;
+        
+        draw();
+    }
+
+    function renderSprite(cx, sprite, drawUI = true) {
+        cx.save();
+
+        const w = sprite.canvas.width;
+        const h = sprite.canvas.height;
+
+        cx.translate(w / 2, h / 2);
+        cx.rotate(STATE.globalRot * Math.PI / 180);
+        
+        if (STATE.globalFlip) {
+            cx.scale(-1, 1);
+        }
+        
+        cx.translate(-w / 2, -h / 2);
+
+        sprite.parts.forEach((p, idx) => {
+            cx.save();
+            cx.translate(sprite.anchor.x + p.x, sprite.anchor.y + p.y);
+            cx.rotate(p.rot * Math.PI / 180);
+            cx.scale(p.sx, p.sy);
+            cx.translate(-sprite.anchor.x, -sprite.anchor.y);
+            cx.drawImage(p.canvas, 0, 0);
+            cx.restore();
+        });
+
+        if (drawUI) {
+            cx.fillStyle = CONFIG.anchorColor;
+            cx.beginPath();
+            cx.arc(sprite.anchor.x, sprite.anchor.y, 4, 0, Math.PI * 2);
+            cx.fill();
+        }
+
+        cx.restore();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+
+        if (STATE.activeSpriteIdx < 0) return;
+
+        const s = STATE.sprites[STATE.activeSpriteIdx];
+        const scale = Math.min(
+            cvs.width / s.canvas.width, 
+            cvs.height / s.canvas.height
+        ) * 0.9; // 90% scale for padding
+
+        ctx.save();
+        ctx.translate(cvs.width / 2, cvs.height / 2);
+        ctx.scale(scale, scale);
+        ctx.translate(-s.canvas.width / 2, -s.canvas.height / 2);
+
+        renderSprite(ctx, s, true);
+
+        ctx.restore();
+    }
+
+    function hitTestPart(x, y) {
+        if (STATE.activeSpriteIdx < 0) return -1;
+        
+        const s = STATE.sprites[STATE.activeSpriteIdx];
+        const scale = Math.min(
+            cvs.width / s.canvas.width, 
+            cvs.height / s.canvas.height
+        ) * 0.9;
+        
+        const sx = (x - cvs.width / 2) / scale + s.canvas.width / 2;
+        const sy = (y - cvs.height / 2) / scale + s.canvas.height / 2;
+
+        // Simple hit test - check if near the sprite
+        const threshold = 20;
+        if (sx >= -threshold && sy >= -threshold && 
+            sx <= s.canvas.width + threshold && sy <= s.canvas.height + threshold) {
+            return 0; // First part
+        }
+        
+        return -1;
+    }
+
+    function performCut() {
+        if (STATE.activeSpriteIdx < 0) {
+            alert("No sprite selected. Please upload an image first.");
+            return;
+        }
+        
+        setStatus("CUTTING...");
+        setTimeout(() => {
+            // Placeholder for actual cut logic
+            alert("Cut operation completed!");
+            setStatus(null);
+            confirmBtn.style.display = 'none';
+            setMode('none');
+        }, 500);
+    }
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', init);
+    window.addEventListener('load', () => {
+        // Ensure everything is properly sized
+        resize();
+    });
+</script>
+</body>
+</html>
