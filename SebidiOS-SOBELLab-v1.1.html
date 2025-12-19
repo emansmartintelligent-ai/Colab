@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sobel Edge Detector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0; /* Slate 200 */
+        }
+
+        /* Custom Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            width: 100%; 
+            background: transparent; 
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #38bdf8; /* Sky 400 */
+            cursor: pointer;
+            margin-top: -6px; 
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155; /* Slate 700 */
+            border-radius: 2px;
+        }
+
+        input[type=range]:focus::-webkit-slider-runnable-track {
+            background: #475569;
+        }
+
+        /* Canvas container pattern */
+        .checkerboard {
+            background-color: #1e293b;
+            background-image: 
+                linear-gradient(45deg, #0f172a 25%, transparent 25%), 
+                linear-gradient(-45deg, #0f172a 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #0f172a 75%), 
+                linear-gradient(-45deg, transparent 75%, #0f172a 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Comparison Slider Specifics */
+        .touch-none {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen lg:h-screen flex flex-col lg:overflow-hidden">
+
+    <!-- Header -->
+    <header class="flex-none bg-slate-900 border-b border-slate-800 p-4 flex items-center justify-between z-20 sticky top-0 lg:static">
+        <div class="flex items-center gap-3">
+            <div class="bg-sky-500/10 p-2 rounded-lg text-sky-400">
+                <i data-lucide="layers" class="w-6 h-6"></i>
+            </div>
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-indigo-400">
+                Sobel Lab
+            </h1>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="document.getElementById('fileInput').click()" 
+                    class="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-medium rounded-lg transition-colors border border-slate-700">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Upload</span>
+            </button>
+            <button onclick="toggleCamera()" 
+                    id="cameraBtn"
+                    class="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm font-medium rounded-lg transition-colors border border-slate-700 text-sky-400">
+                <i data-lucide="camera" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Camera</span>
+            </button>
+            <button onclick="downloadImage()" 
+                    id="downloadBtn"
+                    disabled
+                    class="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-sky-900/20">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Download</span>
+            </button>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" class="hidden">
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col lg:flex-row-reverse lg:overflow-hidden">
+        
+        <!-- Canvas Area -->
+        <div class="flex-1 bg-black relative checkerboard lg:overflow-hidden flex items-center justify-center p-4 min-h-[50vh] lg:min-h-0">
+            <div id="emptyState" class="text-center z-10">
+                <div class="bg-slate-800/80 p-6 rounded-full inline-block mb-4 shadow-xl backdrop-blur-sm">
+                    <i data-lucide="image" class="w-12 h-12 text-slate-400"></i>
+                </div>
+                <p class="text-slate-400 font-medium">No image loaded</p>
+                <div class="flex gap-4 justify-center mt-4">
+                    <button onclick="document.getElementById('fileInput').click()" class="text-sky-400 hover:text-sky-300 text-sm font-medium">Browse Files</button>
+                    <span class="text-slate-600">|</span>
+                    <button onclick="toggleCamera()" class="text-sky-400 hover:text-sky-300 text-sm font-medium">Open Camera</button>
+                </div>
+            </div>
+            
+            <!-- Comparison Container -->
+            <div id="compareContainer" class="hidden relative inline-block max-w-full max-h-full shadow-2xl rounded-sm overflow-hidden group select-none touch-none">
+                
+                <!-- Bottom Layer 1: Static Original Image -->
+                <img id="originalView" class="block max-w-full max-h-full w-auto h-auto select-none pointer-events-none" draggable="false">
+                
+                <!-- Bottom Layer 2: Live Camera Feed (Hidden by default) -->
+                <video id="liveFeed" autoplay playsinline muted class="hidden max-w-full max-h-full w-auto h-auto select-none pointer-events-none object-contain"></video>
+
+                <!-- Top Layer: Modified (Clipped) -->
+                <div id="clipper" class="absolute top-0 left-0 bottom-0 overflow-hidden border-r border-sky-400/30 bg-black/5" style="width: 50%;">
+                     <canvas id="canvas" class="absolute top-0 left-0 h-full select-none"></canvas>
+                </div>
+        
+                <!-- Slider Handle -->
+                <div id="sliderHandle" class="absolute top-0 bottom-0 w-8 -ml-4 cursor-ew-resize z-20 flex flex-col justify-center items-center group-hover:opacity-100 transition-opacity" style="left: 50%;">
+                    <div class="w-0.5 h-full bg-sky-400/50 shadow-[0_0_10px_rgba(56,189,248,0.5)]"></div>
+                    <div class="absolute w-8 h-8 bg-sky-500 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-slate-900 top-1/2 -translate-y-1/2">
+                        <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                
+                <!-- Labels -->
+                <div class="absolute top-2 left-2 bg-black/60 text-sky-400 text-[10px] font-bold px-2 py-1 rounded backdrop-blur border border-sky-500/20 z-10 pointer-events-none">SOBEL</div>
+                <div class="absolute top-2 right-2 bg-black/60 text-slate-400 text-[10px] font-bold px-2 py-1 rounded backdrop-blur border border-slate-700/50 z-10 pointer-events-none">ORIGINAL</div>
+            </div>
+            
+            <!-- Loading Indicator -->
+            <div id="loading" class="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col items-center justify-center hidden">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500 mb-4"></div>
+                <p class="text-white font-medium">Processing...</p>
+            </div>
+            
+            <!-- Camera Error Toast -->
+            <div id="errorToast" class="hidden absolute bottom-4 bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium backdrop-blur-sm border border-red-400/50">
+                Camera access denied or unavailable.
+            </div>
+        </div>
+
+        <!-- Controls Sidebar -->
+        <aside class="w-full lg:w-80 flex-none bg-slate-900 border-r border-slate-800 p-6 lg:overflow-y-auto hide-scrollbar z-10 shadow-xl">
+            
+            <div class="space-y-8">
+                <!-- Status/Intro -->
+                <div id="introText" class="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 text-sm text-slate-400">
+                    <p class="flex gap-2">
+                        <i data-lucide="info" class="w-5 h-5 text-sky-400 shrink-0"></i>
+                        Upload an image or use the camera to start detecting edges.
+                    </p>
+                </div>
+
+                <!-- Parameters -->
+                <div class="space-y-6 opacity-50 pointer-events-none transition-opacity duration-300" id="controlsArea">
+                    
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-semibold text-slate-300">Threshold</label>
+                            <span id="thresholdVal" class="text-xs font-mono text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded">30</span>
+                        </div>
+                        <input type="range" id="threshold" min="0" max="255" value="30" class="w-full">
+                        <p class="text-xs text-slate-500 mt-1">Filters out weak edges (noise).</p>
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-semibold text-slate-300">Intensity</label>
+                            <span id="intensityVal" class="text-xs font-mono text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded">1.0</span>
+                        </div>
+                        <input type="range" id="intensity" min="0.5" max="5" step="0.1" value="1.0" class="w-full">
+                        <p class="text-xs text-slate-500 mt-1">Brightness multiplier for edges.</p>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-800 space-y-4">
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Invert Colors</span>
+                            <div class="relative inline-block w-11 h-6 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" id="invert" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer translate-x-0.5 translate-y-0.5 transition-transform duration-200"/>
+                                <div class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-700 cursor-pointer border border-slate-600"></div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Mix Original</span>
+                            <div class="relative inline-block w-11 h-6 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" id="mixOriginal" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer translate-x-0.5 translate-y-0.5 transition-transform duration-200"/>
+                                <div class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-700 cursor-pointer border border-slate-600"></div>
+                            </div>
+                        </label>
+                        <p class="text-xs text-slate-500">Overlays edges on top of the original image.</p>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div id="statsArea" class="hidden pt-4 border-t border-slate-800">
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Image Stats</h3>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-slate-800 p-2 rounded">
+                            <span class="block text-slate-500">Width</span>
+                            <span class="font-mono text-slate-200" id="statWidth">0px</span>
+                        </div>
+                        <div class="bg-slate-800 p-2 rounded">
+                            <span class="block text-slate-500">Height</span>
+                            <span class="font-mono text-slate-200" id="statHeight">0px</span>
+                        </div>
+                        <div class="bg-slate-800 p-2 rounded col-span-2">
+                            <span class="block text-slate-500">Processing Time</span>
+                            <span class="font-mono text-sky-400" id="statTime">0ms</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+
+    </main>
+
+    <!-- Custom toggle styles not in Tailwind by default -->
+    <style>
+        .toggle-checkbox:checked {
+            transform: translate(1.25rem, 0.125rem);
+            border-color: #38bdf8;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #0284c7; /* Sky 600 */
+        }
+    </style>
+
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // DOM Elements
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true }); 
+        
+        const controlsArea = document.getElementById('controlsArea');
+        const emptyState = document.getElementById('emptyState');
+        const loading = document.getElementById('loading');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const cameraBtn = document.getElementById('cameraBtn');
+        const introText = document.getElementById('introText');
+        const statsArea = document.getElementById('statsArea');
+        const errorToast = document.getElementById('errorToast');
+
+        // Comparison Elements
+        const compareContainer = document.getElementById('compareContainer');
+        const originalView = document.getElementById('originalView');
+        const liveFeed = document.getElementById('liveFeed');
+        const clipper = document.getElementById('clipper');
+        const sliderHandle = document.getElementById('sliderHandle');
+
+        // Stats Elements
+        const statWidth = document.getElementById('statWidth');
+        const statHeight = document.getElementById('statHeight');
+        const statTime = document.getElementById('statTime');
+
+        // Inputs
+        const thresholdInput = document.getElementById('threshold');
+        const intensityInput = document.getElementById('intensity');
+        const invertInput = document.getElementById('invert');
+        const mixInput = document.getElementById('mixOriginal');
+        const thresholdVal = document.getElementById('thresholdVal');
+        const intensityVal = document.getElementById('intensityVal');
+
+        // State
+        let originalImageData = null;
+        let originalWidth = 0;
+        let originalHeight = 0;
+        let isProcessing = false;
+        let resizeObserver = null;
+        
+        let stream = null;
+        let isCameraActive = false;
+        let videoInterval = null;
+
+        // UI Event Listeners
+        thresholdInput.addEventListener('input', (e) => {
+            thresholdVal.innerText = e.target.value;
+            if (!isCameraActive) requestProcess();
+        });
+
+        intensityInput.addEventListener('input', (e) => {
+            intensityVal.innerText = e.target.value;
+            if (!isCameraActive) requestProcess();
+        });
+
+        invertInput.addEventListener('change', () => { if (!isCameraActive) requestProcess() });
+        mixInput.addEventListener('change', () => { if (!isCameraActive) requestProcess() });
+
+        // File Upload
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            stopCamera(); // Ensure camera is off
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    setupStaticImage(img);
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Camera Logic
+        async function toggleCamera() {
+            if (isCameraActive) {
+                stopCamera();
+                return;
+            }
+
+            try {
+                // Request camera
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 800 } // Limit resolution for performance
+                    } 
+                });
+                
+                liveFeed.srcObject = stream;
+                isCameraActive = true;
+                
+                // Update UI Buttons
+                cameraBtn.classList.add('bg-red-500/10', 'text-red-400', 'border-red-500/20');
+                cameraBtn.classList.remove('bg-slate-800', 'text-sky-400', 'border-slate-700');
+                cameraBtn.innerHTML = '<i data-lucide="video-off" class="w-4 h-4"></i> <span class="hidden sm:inline">Stop</span>';
+                lucide.createIcons();
+
+                // Switch Views
+                emptyState.classList.add('hidden');
+                compareContainer.classList.remove('hidden');
+                originalView.classList.add('hidden');
+                liveFeed.classList.remove('hidden');
+                
+                controlsArea.classList.remove('opacity-50', 'pointer-events-none');
+                introText.classList.add('hidden');
+                statsArea.classList.remove('hidden');
+                downloadBtn.disabled = false;
+
+                // Wait for video to be ready to get dimensions
+                liveFeed.onloadedmetadata = () => {
+                    setupVideoCanvas();
+                    startVideoLoop();
+                };
+
+            } catch (err) {
+                console.error("Camera Error:", err);
+                showError("Camera access denied.");
+                stopCamera();
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            if (videoInterval) {
+                cancelAnimationFrame(videoInterval);
+                videoInterval = null;
+            }
+            isCameraActive = false;
+            
+            // Reset UI
+            cameraBtn.classList.remove('bg-red-500/10', 'text-red-400', 'border-red-500/20');
+            cameraBtn.classList.add('bg-slate-800', 'text-sky-400', 'border-slate-700');
+            cameraBtn.innerHTML = '<i data-lucide="camera" class="w-4 h-4"></i> <span class="hidden sm:inline">Camera</span>';
+            lucide.createIcons();
+
+            // If we didn't have a static image before, show empty state
+            if (!originalImageData && !isCameraActive) {
+                liveFeed.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                compareContainer.classList.add('hidden');
+            } else if (originalImageData) {
+                // Return to static image view if available
+                liveFeed.classList.add('hidden');
+                originalView.classList.remove('hidden');
+                compareContainer.classList.remove('hidden');
+            }
+        }
+
+        function setupVideoCanvas() {
+            // Set canvas logic dimensions to match video stream
+            const w = liveFeed.videoWidth;
+            const h = liveFeed.videoHeight;
+            
+            canvas.width = w;
+            canvas.height = h;
+            originalWidth = w;
+            originalHeight = h;
+
+            statWidth.innerText = `${w}px`;
+            statHeight.innerText = `${h}px`;
+
+            setupResizeObserver();
+        }
+
+        function startVideoLoop() {
+            if (!isCameraActive) return;
+
+            function step() {
+                if (!isCameraActive) return;
+
+                // 1. Draw current video frame to canvas
+                ctx.drawImage(liveFeed, 0, 0, originalWidth, originalHeight);
+                
+                // 2. Get the data
+                originalImageData = ctx.getImageData(0, 0, originalWidth, originalHeight);
+
+                // 3. Process it in-place (updates canvas)
+                processImageInternal(true); // true = sync mode (no animation frame request)
+
+                videoInterval = requestAnimationFrame(step);
+            }
+            step();
+        }
+
+        function setupStaticImage(img) {
+            isCameraActive = false;
+            liveFeed.classList.add('hidden');
+            originalView.classList.remove('hidden');
+            
+            // Calculate aspect ratio
+            const maxDimension = 800;
+            let w = img.width;
+            let h = img.height;
+
+            if (w > maxDimension || h > maxDimension) {
+                const ratio = Math.min(maxDimension / w, maxDimension / h);
+                w = Math.floor(w * ratio);
+                h = Math.floor(h * ratio);
+            }
+
+            canvas.width = w;
+            canvas.height = h;
+            originalWidth = w;
+            originalHeight = h;
+
+            // Draw initial image to canvas buffer
+            ctx.drawImage(img, 0, 0, w, h);
+            
+            // Store original data
+            originalImageData = ctx.getImageData(0, 0, w, h);
+
+            // Update Comparison View
+            originalView.src = img.src; 
+
+            // Update UI
+            emptyState.classList.add('hidden');
+            compareContainer.classList.remove('hidden');
+            controlsArea.classList.remove('opacity-50', 'pointer-events-none');
+            introText.classList.add('hidden');
+            statsArea.classList.remove('hidden');
+            downloadBtn.disabled = false;
+            
+            statWidth.innerText = `${w}px`;
+            statHeight.innerText = `${h}px`;
+
+            setupResizeObserver();
+            requestProcess();
+        }
+
+        function setupResizeObserver() {
+            if (resizeObserver) resizeObserver.disconnect();
+            resizeObserver = new ResizeObserver(() => {
+                syncCanvasSize();
+            });
+            resizeObserver.observe(compareContainer);
+            syncCanvasSize();
+        }
+
+        function syncCanvasSize() {
+            const rect = compareContainer.getBoundingClientRect();
+            if (rect.width > 0) {
+                canvas.style.width = `${rect.width}px`;
+            }
+        }
+
+        // --- Slider / Swipe Logic ---
+        let isDragging = false;
+
+        function updateSlider(clientX) {
+            const rect = compareContainer.getBoundingClientRect();
+            let x = clientX - rect.left;
+            if (x < 0) x = 0;
+            if (x > rect.width) x = rect.width;
+            const percentage = (x / rect.width) * 100;
+
+            clipper.style.width = `${percentage}%`;
+            sliderHandle.style.left = `${percentage}%`;
+        }
+
+        compareContainer.addEventListener('mousedown', (e) => { isDragging = true; updateSlider(e.clientX); });
+        window.addEventListener('mousemove', (e) => { if (isDragging) { e.preventDefault(); updateSlider(e.clientX); }});
+        window.addEventListener('mouseup', () => { isDragging = false; });
+        compareContainer.addEventListener('touchstart', (e) => { isDragging = true; updateSlider(e.touches[0].clientX); }, { passive: false });
+        window.addEventListener('touchmove', (e) => { if (isDragging) { updateSlider(e.touches[0].clientX); } }, { passive: false });
+        window.addEventListener('touchend', () => { isDragging = false; });
+
+        // --- Processing Logic ---
+
+        let animationFrameId;
+
+        function requestProcess() {
+            if (isProcessing) return;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = requestAnimationFrame(() => processImageInternal(false));
+        }
+
+        // Extracted Core Logic
+        function processImageInternal(isLooping) {
+            if (!originalImageData) return;
+            
+            isProcessing = true;
+            const startTime = performance.now();
+
+            const w = originalWidth;
+            const h = originalHeight;
+            const src = originalImageData.data;
+            const outputImage = ctx.createImageData(w, h);
+            const dst = outputImage.data;
+
+            const threshold = parseInt(thresholdInput.value);
+            const intensity = parseFloat(intensityInput.value);
+            const invert = invertInput.checked;
+            const mix = mixInput.checked;
+
+            function getLuma(idx) {
+                return 0.299 * src[idx] + 0.587 * src[idx + 1] + 0.114 * src[idx + 2];
+            }
+
+            // Simplified Sobel Loop (Optimization: skipping borders)
+            // Using a single loop with stride for slightly better JS performance
+            for (let y = 1; y < h - 1; y++) {
+                // Optimization: Pre-calculate row indices
+                const rowOffset = y * w;
+                const prevRowOffset = (y - 1) * w;
+                const nextRowOffset = (y + 1) * w;
+
+                for (let x = 1; x < w - 1; x++) {
+                    const idx = (rowOffset + x) * 4;
+                    
+                    // Direct Index Access
+                    // Top Row
+                    const idxTL = (prevRowOffset + (x - 1)) * 4;
+                    const idxT  = (prevRowOffset + x) * 4;
+                    const idxTR = (prevRowOffset + (x + 1)) * 4;
+                    
+                    // Middle Row
+                    const idxL  = (rowOffset + (x - 1)) * 4;
+                    const idxR  = (rowOffset + (x + 1)) * 4;
+                    
+                    // Bottom Row
+                    const idxBL = (nextRowOffset + (x - 1)) * 4;
+                    const idxB  = (nextRowOffset + x) * 4;
+                    const idxBR = (nextRowOffset + (x + 1)) * 4;
+
+                    const valTL = getLuma(idxTL);
+                    const valT  = getLuma(idxT);
+                    const valTR = getLuma(idxTR);
+                    const valL  = getLuma(idxL);
+                    const valR  = getLuma(idxR);
+                    const valBL = getLuma(idxBL);
+                    const valB  = getLuma(idxB);
+                    const valBR = getLuma(idxBR);
+
+                    const gx = (-1 * valTL) + (1 * valTR) + 
+                               (-2 * valL)  + (2 * valR) + 
+                               (-1 * valBL) + (1 * valBR);
+
+                    const gy = (-1 * valTL) + (-2 * valT) + (-1 * valTR) +
+                               (1 * valBL)  + (2 * valB)  + (1 * valBR);
+
+                    let magnitude = Math.sqrt(gx * gx + gy * gy);
+                    magnitude = magnitude * intensity;
+
+                    if (magnitude < threshold) magnitude = 0;
+
+                    if (mix) {
+                        if (magnitude > threshold) {
+                            if (invert) {
+                                const v = 255 - magnitude;
+                                dst[idx] = v; dst[idx+1] = v; dst[idx+2] = v;
+                            } else {
+                                dst[idx] = magnitude; dst[idx+1] = magnitude; dst[idx+2] = magnitude;
+                            }
+                        } else {
+                            dst[idx] = src[idx]; dst[idx+1] = src[idx+1]; dst[idx+2] = src[idx+2];
+                        }
+                    } else {
+                        let finalVal = magnitude;
+                        if (invert) finalVal = 255 - finalVal;
+                        dst[idx] = finalVal; dst[idx+1] = finalVal; dst[idx+2] = finalVal;
+                    }
+                    dst[idx + 3] = 255;
+                }
+            }
+
+            ctx.putImageData(outputImage, 0, 0);
+            
+            const endTime = performance.now();
+            if (!isLooping) {
+                // Only update DOM stats if not in tight video loop to prevent layout thrashing
+                statTime.innerText = Math.round(endTime - startTime) + 'ms';
+            } else {
+                // Update simpler throttled stat or just occasionally
+                 if (Math.random() < 0.05) statTime.innerText = Math.round(endTime - startTime) + 'ms';
+            }
+            
+            isProcessing = false;
+        }
+
+        function downloadImage() {
+            if (!originalImageData && !isCameraActive) return;
+            const link = document.createElement('a');
+            link.download = `sobel-snapshot-${Date.now()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        function showError(msg) {
+            errorToast.innerText = msg;
+            errorToast.classList.remove('hidden');
+            setTimeout(() => errorToast.classList.add('hidden'), 3000);
+        }
+
+    </script>
+</body>
+</html>
+
+
