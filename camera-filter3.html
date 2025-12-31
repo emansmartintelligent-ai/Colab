@@ -3,69 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vision Processor v3.1</title>
+    <title>Vision Processor v3.2</title>
     <style>
         :root { --accent: #00d4ff; --bg: #0f0f12; --panel: #1e1e24; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; min-height: 100vh; }
         
-        .main-layout { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; max-width: 1400px; width: 100%; }
+        .main-layout { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; align-items: flex-start; max-width: 1200px; width: 100%; margin-top: 20px; }
         
-        /* Layout Controls */
-        .viewport-section { flex: 1; min-width: 600px; }
-        .canvas-container { position: relative; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.7); border: 1px solid #333; aspect-ratio: 16 / 9; }
+        /* Main Viewport Focus */
+        .viewport-section { flex: 2; min-width: 320px; max-width: 800px; }
+        .canvas-container { position: relative; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); border: 1px solid #333; aspect-ratio: 16 / 9; }
         canvas#outputCanvas { width: 100%; height: 100%; display: block; object-fit: contain; }
 
-        .preview-grid { display: flex; flex-direction: column; gap: 10px; width: 220px; }
-        .preview-box { background: var(--panel); border-radius: 8px; overflow: hidden; border: 1px solid #444; aspect-ratio: 16 / 9; }
-        .preview-box label { font-size: 9px; padding: 4px 8px; display: block; background: #2a2a32; color: var(--accent); }
-        .preview-box canvas { width: 100%; display: block; }
-
-        .controls { background: var(--panel); padding: 20px; border-radius: 12px; width: 280px; display: flex; flex-direction: column; gap: 15px; border: 1px solid #333; }
-        .control-group { display: flex; flex-direction: column; gap: 5px; }
-        .checkbox-group { flex-direction: row; align-items: center; gap: 10px; background: rgba(0,212,255,0.1); padding: 10px; border-radius: 6px; border: 1px solid var(--accent); }
+        /* Clean Controls */
+        .controls { flex: 1; background: var(--panel); padding: 25px; border-radius: 16px; min-width: 280px; display: flex; flex-direction: column; gap: 20px; border: 1px solid #333; }
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        .checkbox-group { flex-direction: row; align-items: center; gap: 12px; background: rgba(0,212,255,0.05); padding: 12px; border-radius: 8px; border: 1px solid rgba(0,212,255,0.3); }
         
-        label { font-size: 0.7rem; font-weight: 600; color: #aaa; text-transform: uppercase; }
-        input[type="range"] { cursor: pointer; accent-color: var(--accent); }
-        button { cursor: pointer; padding: 10px; border: none; border-radius: 6px; font-weight: bold; background: #333; color: white; }
+        label { font-size: 0.75rem; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+        input[type="range"] { cursor: pointer; accent-color: var(--accent); height: 6px; border-radius: 3px; }
+        
+        button { cursor: pointer; padding: 14px; border: none; border-radius: 8px; font-weight: bold; transition: 0.2s; font-size: 0.9rem; }
         .btn-main { background: var(--accent); color: #000; }
+        .btn-main:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,212,255,0.4); }
+        .btn-snap { background: #22c55e; color: white; }
         
+        #status { font-size: 0.8rem; color: #666; margin-top: 10px; }
         #v-hidden { display: none; }
+        h1 { margin: 0; font-weight: 800; letter-spacing: -1px; }
     </style>
 </head>
 <body>
 
-    <h1 style="margin-bottom:10px;">Vision Processor <span style="color:var(--accent)">v3.1</span></h1>
+    <h1>Vision <span style="color:var(--accent)">Grid</span></h1>
+    <div id="status">Front Camera Ready</div>
 
     <div class="main-layout">
-        <div class="preview-grid">
-            <div class="preview-box"><label>QUANTIZED</label><canvas id="qCanvas"></canvas></div>
-            <div class="preview-box"><label>COSINE</label><canvas id="cCanvas"></canvas></div>
-            <div class="preview-box"><label>SOBEL</label><canvas id="sCanvas"></canvas></div>
-        </div>
-
         <div class="viewport-section">
-            <div class="canvas-container"><canvas id="outputCanvas"></canvas></div>
+            <div class="canvas-container">
+                <canvas id="outputCanvas"></canvas>
+            </div>
         </div>
 
         <div class="controls">
-            <button class="btn-main" id="init-btn">Initialize Camera</button>
+            <button class="btn-main" id="init-btn">Start Front Camera</button>
+            
             <div class="control-group checkbox-group">
                 <input type="checkbox" id="combine-mode" checked>
-                <label for="combine-mode" style="color: #fff; cursor: pointer;">2x2 Grid Mode</label>
+                <label for="combine-mode" style="color: #fff; cursor: pointer; margin: 0;">Enable 2x2 Multi-View</label>
             </div>
+
             <div class="control-group">
-                <label>Quantization (Steps): <span id="q-val">8</span></label>
-                <input type="range" id="quantize" min="2" max="32" value="8">
+                <label>Quantization Bits: <span id="q-val">8</span></label>
+                <input type="range" id="quantize" min="2" max="24" value="8">
             </div>
+
             <div class="control-group">
-                <label>Wave Intensity: <span id="c-val">0</span></label>
+                <label>Wave distortion: <span id="c-val">0</span></label>
                 <input type="range" id="cosine" min="0" max="100" value="0">
             </div>
+
             <div class="control-group">
-                <label>Edge Strength: <span id="s-val">0</span></label>
+                <label>Edge detection: <span id="s-val">0</span></label>
                 <input type="range" id="sobel" min="0" max="2" step="0.1" value="0">
             </div>
-            <button id="snap" style="background:#4CAF50">Save Output</button>
+
+            <button class="btn-snap" id="snap">Export Frame</button>
         </div>
     </div>
 
@@ -76,60 +79,81 @@
     const mainCanvas = document.getElementById('outputCanvas');
     const mainCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
     
-    const previews = {
-        q: { canvas: document.getElementById('qCanvas'), ctx: document.getElementById('qCanvas').getContext('2d', {willReadFrequently: true}) },
-        c: { canvas: document.getElementById('cCanvas'), ctx: document.getElementById('cCanvas').getContext('2d', {willReadFrequently: true}) },
-        s: { canvas: document.getElementById('sCanvas'), ctx: document.getElementById('sCanvas').getContext('2d', {willReadFrequently: true}) }
+    // Internal "Offscreen" Canvases for processing
+    const offscreen = {
+        q: document.createElement('canvas'),
+        c: document.createElement('canvas'),
+        s: document.createElement('canvas')
     };
     
-    const combineCheck = document.getElementById('combine-mode');
-    const qSlider = document.getElementById('quantize');
-    const cSlider = document.getElementById('cosine');
-    const sSlider = document.getElementById('sobel');
+    const ctxs = {
+        q: offscreen.q.getContext('2d', {willReadFrequently: true}),
+        c: offscreen.c.getContext('2d', {willReadFrequently: true}),
+        s: offscreen.s.getContext('2d', {willReadFrequently: true})
+    };
 
-    const W = 640; // Internal processing width (16:9)
-    const H = 360; // Internal processing height
+    const W = 1280; // High quality master width
+    const H = 720;  // High quality master height
 
+    // Initialize Camera (Requesting Front Facing)
     document.getElementById('init-btn').addEventListener('click', async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 1.777 } });
+            const constraints = { 
+                video: { 
+                    facingMode: "user", // Targets Front Camera
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                } 
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = stream;
+            
             video.onloadedmetadata = () => {
                 mainCanvas.width = W;
                 mainCanvas.height = H;
-                Object.values(previews).forEach(p => { p.canvas.width = W; p.canvas.height = H; });
+                Object.values(offscreen).forEach(canv => { canv.width = W; canv.height = H; });
                 document.getElementById('init-btn').style.display = 'none';
+                document.getElementById('status').innerText = "System: Live Feed Active";
                 processFrame();
             };
-        } catch (err) { alert("Camera Error: " + err.message); }
+        } catch (err) {
+            alert("Camera Access Denied: " + err.message);
+        }
     });
 
     function processFrame() {
-        const qVal = parseInt(qSlider.value);
-        const cVal = parseInt(cSlider.value);
-        const sVal = parseFloat(sSlider.value);
+        const qLevels = parseInt(document.getElementById('quantize').value);
+        const cInt = parseInt(document.getElementById('cosine').value);
+        const sAmt = parseFloat(document.getElementById('sobel').value);
 
-        document.getElementById('q-val').innerText = qVal;
-        document.getElementById('c-val').innerText = cVal;
-        document.getElementById('s-val').innerText = sVal;
+        // Update Labels
+        document.getElementById('q-val').innerText = qLevels;
+        document.getElementById('c-val').innerText = cInt;
+        document.getElementById('s-val').innerText = sAmt;
 
-        // 1. Core Filter Logic
-        renderQuantize(qVal);
-        renderCosine(cVal);
-        renderSobel(sVal);
+        // Execute Filters Offscreen
+        renderQuantize(qLevels);
+        renderCosine(cInt);
+        renderSobel(sAmt);
 
-        // 2. Final Compositing
-        mainCtx.fillStyle = "#000";
-        mainCtx.fillRect(0, 0, W, H);
-
-        if (combineCheck.checked) {
+        // Composite Final Main Canvas
+        if (document.getElementById('combine-mode').checked) {
             const hw = W / 2;
             const hh = H / 2;
-            // Grid 2x2
-            mainCtx.drawImage(video, 0, 0, hw, hh);              // Top Left: Raw
-            mainCtx.drawImage(previews.q.canvas, hw, 0, hw, hh); // Top Right: Quant
-            mainCtx.drawImage(previews.c.canvas, 0, hh, hw, hh); // Bottom Left: Cosine
-            mainCtx.drawImage(previews.s.canvas, hw, hh, hw, hh);// Bottom Right: Sobel
+            
+            // Draw 2x2 Grid
+            mainCtx.drawImage(video, 0, 0, hw, hh);      // Top Left: Raw
+            mainCtx.drawImage(offscreen.q, hw, 0, hw, hh); // Top Right: Quantized
+            mainCtx.drawImage(offscreen.c, 0, hh, hw, hh); // Bottom Left: Cosine
+            mainCtx.drawImage(offscreen.s, hw, hh, hw, hh);// Bottom Right: Sobel
+
+            // Visual Grid Lines
+            mainCtx.strokeStyle = "rgba(255,255,255,0.2)";
+            mainCtx.lineWidth = 2;
+            mainCtx.beginPath();
+            mainCtx.moveTo(hw, 0); mainCtx.lineTo(hw, H);
+            mainCtx.moveTo(0, hh); mainCtx.lineTo(W, hh);
+            mainCtx.stroke();
         } else {
             mainCtx.drawImage(video, 0, 0, W, H);
         }
@@ -137,42 +161,41 @@
         requestAnimationFrame(processFrame);
     }
 
+    // --- True Pixel Depth Quantization ---
     function renderQuantize(levels) {
-        const {ctx, canvas} = previews.q;
-        ctx.drawImage(video, 0, 0, W, H);
-        let frame = ctx.getImageData(0, 0, W, H);
+        ctxs.q.drawImage(video, 0, 0, W, H);
+        let frame = ctxs.q.getImageData(0, 0, W, H);
         let data = frame.data;
-        
-        // True depth reduction logic
         const step = 255 / (levels - 1);
+
         for (let i = 0; i < data.length; i += 4) {
-            data[i]   = Math.round(data[i] / step) * step;     // Red
-            data[i+1] = Math.round(data[i+1] / step) * step;   // Green
-            data[i+2] = Math.round(data[i+2] / step) * step;   // Blue
+            data[i]   = Math.round(data[i] / step) * step;
+            data[i+1] = Math.round(data[i+1] / step) * step;
+            data[i+2] = Math.round(data[i+2] / step) * step;
         }
-        ctx.putImageData(frame, 0, 0);
+        ctxs.q.putImageData(frame, 0, 0);
     }
 
+    // --- Cosine Color Modulation ---
     function renderCosine(intensity) {
-        const {ctx, canvas} = previews.c;
-        ctx.drawImage(video, 0, 0, W, H);
+        ctxs.c.drawImage(video, 0, 0, W, H);
         if (intensity === 0) return;
-        let frame = ctx.getImageData(0, 0, W, H);
+        let frame = ctxs.c.getImageData(0, 0, W, H);
         let data = frame.data;
         for (let i = 0; i < data.length; i += 4) {
             const x = (i / 4) % W;
             const wave = Math.cos(x * 0.1) * intensity;
             data[i] += wave; data[i+1] += wave; data[i+2] += wave;
         }
-        ctx.putImageData(frame, 0, 0);
+        ctxs.c.putImageData(frame, 0, 0);
     }
 
+    // --- Sobel Edge Detection ---
     function renderSobel(strength) {
-        const {ctx, canvas} = previews.s;
-        ctx.drawImage(video, 0, 0, W, H);
+        ctxs.s.drawImage(video, 0, 0, W, H);
         if (strength === 0) return;
-        const src = ctx.getImageData(0, 0, W, H).data;
-        const target = ctx.createImageData(W, H);
+        const src = ctxs.s.getImageData(0, 0, W, H).data;
+        const target = ctxs.s.createImageData(W, H);
         const dst = target.data;
         for (let y = 1; y < H - 1; y++) {
             for (let x = 1; x < W - 1; x++) {
@@ -183,13 +206,13 @@
                 dst[i] = edge; dst[i+1] = edge; dst[i+2] = edge; dst[i+3] = 255;
             }
         }
-        ctx.putImageData(target, 0, 0);
+        ctxs.s.putImageData(target, 0, 0);
     }
 
     document.getElementById('snap').onclick = () => {
         const link = document.createElement('a');
-        link.download = `vision-${Date.now()}.png`;
-        link.href = mainCanvas.toDataURL();
+        link.download = `vision-grid-${Date.now()}.png`;
+        link.href = mainCanvas.toDataURL('image/png');
         link.click();
     };
 </script>
