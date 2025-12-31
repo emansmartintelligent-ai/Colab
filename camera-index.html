@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Camera SPA</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #000; font-family: sans-serif;
+            overflow: hidden; display: flex; justify-content: center; align-items: center;
+        }
+        #app { width: 100%; height: 100%; position: relative; }
+        
+        /* Fullscreen Real-time Video */
+        video {
+            width: 100%; height: 100%;
+            object-fit: cover; /* Ensures video fills screen without stretching */
+        }
+
+        /* Permission UI Overlay */
+        #permission-screen {
+            position: absolute; color: white; text-align: center; padding: 20px;
+        }
+        button {
+            background: #007AFF; color: white; border: none;
+            padding: 15px 30px; border-radius: 10px; font-size: 18px;
+            cursor: pointer; margin-top: 15px;
+        }
+
+        /* HUD Overlay */
+        .hud {
+            position: absolute; top: 20px; left: 20px;
+            color: rgba(255,255,255,0.8); font-size: 12px;
+            pointer-events: none; text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="permission-screen">
+        <h2>Camera Access Required</h2>
+        <p>To use this SPA, please enable camera permissions.</p>
+        <button onclick="startCamera()">Enable Camera</button>
+    </div>
+
+    <video id="webcam" autoplay playsinline muted style="display:none;"></video>
+    <div id="hud-overlay" class="hud" style="display:none;">Live Feed Active</div>
+</div>
+
+<script>
+    const video = document.getElementById('webcam');
+    const permScreen = document.getElementById('permission-screen');
+    const hud = document.getElementById('hud-overlay');
+
+    async function startCamera() {
+        try {
+            // Requesting permissions for 'environment' (back camera)
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }, 
+                audio: false 
+            });
+
+            // If successful, switch UI states
+            video.srcObject = stream;
+            video.style.display = "block";
+            permScreen.style.display = "none";
+            hud.style.display = "block";
+
+        } catch (err) {
+            console.error("Error accessing camera: ", err);
+            alert("Could not access camera. Please ensure you are using HTTPS and have granted permission.");
+        }
+    }
+</script>
+
+</body>
+</html>
