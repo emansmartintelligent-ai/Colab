@@ -3,35 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vision Grid - Real-Time Pro</title>
+    <title>Vision Grid - Multi-Export</title>
     <style>
         :root { --accent: #00d4ff; --bg: #0b0b0e; --panel: #16161a; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        
         .main-layout { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1400px; }
-        .viewport-section { flex: 2; min-width: 300px; }
-        .canvas-container { width: 100%; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid #333; }
+        
+        /* Grid Container with Nav Icons */
+        .viewport-section { flex: 2; min-width: 300px; position: relative; }
+        .canvas-container { width: 100%; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid #333; position: relative; }
         canvas { width: 100%; height: auto; display: block; }
+
+        /* Cell Download Icons */
+        .grid-nav { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        .dl-btn { 
+            position: absolute; pointer-events: auto; background: rgba(0,0,0,0.6); color: white; 
+            border: 1px solid rgba(255,255,255,0.2); padding: 8px; border-radius: 4px; cursor: pointer;
+            font-size: 12px; transition: 0.2s; display: flex; align-items: center; gap: 5px;
+        }
+        .dl-btn:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+        
+        /* Icon Positions */
+        .btn-tl { top: 10px; left: 40%; transform: translateX(-100%); } /* Raw */
+        .btn-tr { top: 10px; right: 10px; } /* Quant */
+        .btn-bl { bottom: 45%; left: 40%; transform: translateX(-100%); } /* Cosine */
+        .btn-br { bottom: 45%; right: 10px; } /* Sobel */
+        .btn-master { top: -45px; right: 0; background: #4CAF50; }
+
         .controls { flex: 1; background: var(--panel); padding: 25px; border-radius: 12px; min-width: 280px; display: flex; flex-direction: column; gap: 15px; }
         label { font-size: 0.7rem; font-weight: 700; color: #777; text-transform: uppercase; }
         input[type="range"] { accent-color: var(--accent); }
-        button { cursor: pointer; padding: 12px; border: none; border-radius: 6px; font-weight: bold; background: var(--accent); color: #000; width: 100%; }
+        button#init-btn { cursor: pointer; padding: 12px; border: none; border-radius: 6px; font-weight: bold; background: var(--accent); color: #000; width: 100%; }
+        
         #v-hidden { display: none; }
         .val-display { color: var(--accent); float: right; }
     </style>
 </head>
 <body>
 
-    <h1 style="letter-spacing:-1px">Vision <span style="color:var(--accent)">Grid</span></h1>
+    <h1 style="letter-spacing:-1px; margin-bottom: 50px;">Vision <span style="color:var(--accent)">Grid</span></h1>
 
     <div class="main-layout">
         <div class="viewport-section">
-            <div class="canvas-container"><canvas id="outputCanvas"></canvas></div>
+            <button class="dl-btn btn-master" onclick="download('master')">💾 Save Full Grid</button>
+            <div class="canvas-container">
+                <canvas id="outputCanvas"></canvas>
+                
+                <div class="grid-nav" id="grid-nav">
+                    <button class="dl-btn btn-tl" onclick="download('raw')">⬇️ RAW</button>
+                    <button class="dl-btn btn-tr" onclick="download('q')">⬇️ QUANT</button>
+                    <button class="dl-btn btn-bl" onclick="download('c')">⬇️ COSINE</button>
+                    <button class="dl-btn btn-br" onclick="download('s')">⬇️ SOBEL</button>
+                </div>
+            </div>
         </div>
 
         <div class="controls">
-            <button id="init-btn">Start Real-Time Engine</button>
+            <button id="init-btn">Initialize Engine</button>
             <div class="control-group" style="flex-direction:row; align-items:center; gap:10px;">
-                <input type="checkbox" id="combine-mode" checked>
+                <input type="checkbox" id="combine-mode" checked onchange="toggleNav()">
                 <label for="combine-mode" style="color:#eee; cursor:pointer;">2x2 Grid View</label>
             </div>
             <div class="control-group">
@@ -56,15 +87,20 @@
     const mainCanvas = document.getElementById('outputCanvas');
     const mainCtx = mainCanvas.getContext('2d', { alpha: false });
     
-    // Performance optimized buffers
-    const buffers = { q: document.createElement('canvas'), c: document.createElement('canvas'), s: document.createElement('canvas') };
-    const bCtx = { 
-        q: buffers.q.getContext('2d', { willReadFrequently: true }), 
-        c: buffers.c.getContext('2d', { willReadFrequently: true }), 
-        s: buffers.s.getContext('2d', { willReadFrequently: true }) 
+    const buffers = { 
+        raw: document.createElement('canvas'), // Buffer for the raw mirrored feed
+        q: document.createElement('canvas'), 
+        c: document.createElement('canvas'), 
+        s: document.createElement('canvas') 
     };
+    const bCtx = {};
+    Object.keys(buffers).forEach(key => bCtx[key] = buffers[key].getContext('2d', { willReadFrequently: true }));
 
     let streamW, streamH, procW, procH;
+
+    function toggleNav() {
+        document.getElementById('grid-nav').style.display = document.getElementById('combine-mode').checked ? 'block' : 'none';
+    }
 
     document.getElementById('init-btn').addEventListener('click', async () => {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
@@ -72,7 +108,6 @@
         video.onloadedmetadata = () => {
             streamW = video.videoWidth;
             streamH = video.videoHeight;
-            // Processing resolution (Balanced for speed/detail)
             procW = 640; 
             procH = (streamH / streamW) * 640;
 
@@ -93,31 +128,32 @@
         document.getElementById('c-val').innerText = cVal;
         document.getElementById('s-val').innerText = sVal;
 
-        // 1. Mirrored Drawing Logic
+        // 1. Prepare Raw Mirrored Buffer
+        bCtx.raw.setTransform(-1, 0, 0, 1, procW, 0);
+        bCtx.raw.drawImage(video, 0, 0, procW, procH);
+
+        // 2. Process Filters
+        applyQuantize(qDiv);
+        applyCosine(cVal);
+        applySobel(sVal);
+
+        // 3. Composite Main
         const hw = streamW / 2;
         const hh = streamH / 2;
-        const phw = procW / 2;
-        const phh = procH / 2;
 
         if (document.getElementById('combine-mode').checked) {
-            // TOP LEFT: RAW (Direct Mirror)
-            mainCtx.setTransform(-1, 0, 0, 1, hw, 0);
-            mainCtx.drawImage(video, 0, 0, hw, hh);
-
-            // Filter Processing (only if slider is moved to save CPU)
-            applyQuantize(qDiv);
-            applyCosine(cVal);
-            applySobel(sVal);
-
-            // DRAW BUFFERS TO MAIN
             mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+            mainCtx.drawImage(buffers.raw, 0, 0, hw, hh);
             mainCtx.drawImage(buffers.q, hw, 0, hw, hh);
             mainCtx.drawImage(buffers.c, 0, hh, hw, hh);
             mainCtx.drawImage(buffers.s, hw, hh, hw, hh);
             
-            // GRID LINES
             mainCtx.strokeStyle = "rgba(0,212,255,0.3)";
-            mainCtx.strokeRect(0, 0, streamW, streamH);
+            mainCtx.lineWidth = 2;
+            mainCtx.beginPath();
+            mainCtx.moveTo(hw, 0); mainCtx.lineTo(hw, streamH);
+            mainCtx.moveTo(0, hh); mainCtx.lineTo(streamW, hh);
+            mainCtx.stroke();
         } else {
             mainCtx.setTransform(-1, 0, 0, 1, streamW, 0);
             mainCtx.drawImage(video, 0, 0, streamW, streamH);
@@ -127,8 +163,7 @@
     }
 
     function applyQuantize(divisor) {
-        bCtx.q.setTransform(-1, 0, 0, 1, procW, 0);
-        bCtx.q.drawImage(video, 0, 0, procW, procH);
+        bCtx.q.drawImage(buffers.raw, 0, 0);
         if (divisor <= 1) return;
         const imgData = bCtx.q.getImageData(0, 0, procW, procH);
         const d = imgData.data;
@@ -141,8 +176,7 @@
     }
 
     function applyCosine(intensity) {
-        bCtx.c.setTransform(-1, 0, 0, 1, procW, 0);
-        bCtx.c.drawImage(video, 0, 0, procW, procH);
+        bCtx.c.drawImage(buffers.raw, 0, 0);
         if (intensity === 0) return;
         const imgData = bCtx.c.getImageData(0, 0, procW, procH);
         const d = imgData.data;
@@ -154,14 +188,12 @@
     }
 
     function applySobel(strength) {
-        bCtx.s.setTransform(-1, 0, 0, 1, procW, 0);
-        bCtx.s.drawImage(video, 0, 0, procW, procH);
+        bCtx.s.drawImage(buffers.raw, 0, 0);
         if (strength === 0) return;
         const src = bCtx.s.getImageData(0, 0, procW, procH).data;
         const target = bCtx.s.createImageData(procW, procH);
         const dst = target.data;
         const w = procW;
-        // Optimized 3x3 Sobel kernel
         for (let i = w * 4; i < src.length - w * 4; i += 4) {
             const hX = -src[i-4-w*4] + src[i+4-w*4] - 2*src[i-4] + 2*src[i+4] - src[i-4+w*4] + src[i+4+w*4];
             const hY = -src[i-4-w*4] - 2*src[i-w*4] - src[i+4-w*4] + src[i-4+w*4] + 2*src[i+w*4] + src[i+4+w*4];
@@ -169,6 +201,13 @@
             dst[i] = dst[i+1] = dst[i+2] = edge; dst[i+3] = 255;
         }
         bCtx.s.putImageData(target, 0, 0);
+    }
+
+    function download(type) {
+        const link = document.createElement('a');
+        link.download = `vision-${type}-${Date.now()}.png`;
+        link.href = (type === 'master') ? mainCanvas.toDataURL() : buffers[type].toDataURL();
+        link.click();
     }
 </script>
 </body>
