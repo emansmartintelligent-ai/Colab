@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision Processor v2</title>
+    <style>
+        :root { --accent: #00d4ff; --bg: #121212; --panel: #1e1e1e; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; max-width: 1200px; }
+        .canvas-container { position: relative; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        canvas { display: block; max-width: 100%; height: auto; }
+        .controls { background: var(--panel); padding: 25px; border-radius: 12px; width: 300px; display: flex; flex-direction: column; gap: 15px; }
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.85rem; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        input[type="range"] { cursor: pointer; accent-color: var(--accent); }
+        button { cursor: pointer; padding: 12px; border: none; border-radius: 6px; font-weight: bold; transition: all 0.2s; background: #333; color: white; }
+        button:hover { filter: brightness(1.2); }
+        .btn-main { background: var(--accent); color: #000; margin-bottom: 10px; }
+        .btn-download { background: #4CAF50; }
+        .btn-record.active { background: #f44336; animation: pulse 1.5s infinite; }
+        #status { font-size: 0.8rem; margin-bottom: 10px; color: #888; }
+        #v-hidden { display: none; }
+        .error-msg { color: #ff5252; background: rgba(255,82,82,0.1); padding: 10px; border-radius: 4px; font-size: 0.8rem; display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>Vision Processor</h1>
+    <div id="status">Status: Waiting for User...</div>
+    <div id="error-box" class="error-msg"></div>
+
+    <div class="container">
+        <video id="v-hidden" autoplay playsinline></video>
+        
+        <div class="canvas-container">
+            <canvas id="outputCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <button class="btn-main" id="init-btn">Initialize Camera</button>
+            
+            <div class="control-group">
+                <label>Quantization: <span id="q-val">255</span></label>
+                <input type="range" id="quantize" min="1" max="50" value="1">
+            </div>
+
+            <div class="control-group">
+                <label>Cosine Wave: <span id="c-val">0</span></label>
+                <input type="range" id="cosine" min="0" max="100" value="0">
+            </div>
+
+            <div class="control-group">
+                <label>Sobel Edge: <span id="s-val">0</span></label>
+                <input type="range" id="sobel" min="0" max="1" step="0.1" value="0">
+            </div>
+
+            <hr style="width:100%; border:0; border-top:1px solid #444;">
+
+            <button class="btn-download" id="snap">Save Frame</button>
+            <button id="record" class="btn-record">Record Video</button>
+        </div>
+    </div>
+
+<script>
+    const video = document.getElementById('v-hidden');
+    const canvas = document.getElementById('outputCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const errorBox = document.getElementById('error-box');
+    const statusText = document.getElementById('status');
+    
+    // UI Sliders
+    const qSlider = document.getElementById('quantize');
+    const cSlider = document.getElementById('cosine');
+    const sSlider = document.getElementById('sobel');
+
+    let mediaRecorder;
+    let recordedChunks = [];
+    let isRecording = false;
+
+    // 1. Initial Check
+    if (!window.isSecureContext) {
+        showError("Not in a Secure Context. Camera requires HTTPS or Localhost.");
+    }
+
+    function showError(msg) {
+        errorBox.innerText = msg;
+        errorBox.style.display = 'block';
+    }
+
+    // 2. Start Camera on Button Click
+    document.getElementById('init-btn').addEventListener('click', async () => {
+        errorBox.style.display = 'none';
+        try {
+            statusText.innerText = "Status: Requesting Permission...";
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: 1280, height: 720 }, 
+                audio: false 
+            });
+            
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                statusText.innerText = "Status: Streaming Active";
+                document.getElementById('init-btn').style.display = 'none';
+                processFrame();
+            };
+        } catch (err) {
+            statusText.innerText = "Status: Permission Denied";
+            showError(`${err.name}: ${err.message}`);
+        }
+    });
+
+    function processFrame() {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        let frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let data = frame.data;
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const q = parseInt(qSlider.value);
+        const cosInt = parseInt(cSlider.value);
+        const sobelAmt = parseFloat(sSlider.value);
+
+        // Update Labels
+        document.getElementById('q-val').innerText = q;
+        document.getElementById('c-val').innerText = cosInt;
+        document.getElementById('s-val').innerText = sobelAmt;
+
+        // Apply Logic
+        for (let i = 0; i < data.length; i += 4) {
+            // Quantization (modified for better effect)
+            if (q > 1) {
+                const factor = 255 / q;
+                data[i] = Math.round(data[i] / factor) * factor;
+                data[i+1] = Math.round(data[i+1] / factor) * factor;
+                data[i+2] = Math.round(data[i+2] / factor) * factor;
+            }
+
+            // Cosine Wave Distortion (Color modulation)
+            if (cosInt > 0) {
+                const x = (i / 4) % w;
+                const wave = Math.cos(x * 0.1) * cosInt;
+                data[i] += wave;
+                data[i+1] += wave;
+                data[i+2] += wave;
+            }
+        }
+
+        ctx.putImageData(frame, 0, 0);
+
+        if (sobelAmt > 0) {
+            applySobel(ctx, w, h, sobelAmt);
+        }
+
+        requestAnimationFrame(processFrame);
+    }
+
+    function applySobel(context, w, h, strength) {
+        const source = context.getImageData(0, 0, w, h);
+        const target = context.createImageData(w, h);
+        const src = source.data;
+        const dst = target.data;
+
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const i = (y * w + x) * 4;
+                
+                // Sobel kernels simplified for performance
+                const hX = (
+                    -1 * src[i - 4 - w * 4] + 1 * src[i + 4 - w * 4] +
+                    -2 * src[i - 4]         + 2 * src[i + 4] +
+                    -1 * src[i - 4 + w * 4] + 1 * src[i + 4 + w * 4]
+                );
+                const hY = (
+                    -1 * src[i - 4 - w * 4] - 2 * src[i - w * 4] - 1 * src[i + 4 - w * 4] +
+                     1 * src[i - 4 + w * 4] + 2 * src[i + w * 4] + 1 * src[i + 4 + w * 4]
+                );
+
+                const edge = Math.sqrt(hX * hX + hY * hY) * strength;
+                dst[i] = src[i] + edge;
+                dst[i+1] = src[i+1] + edge;
+                dst[i+2] = src[i+2] + edge;
+                dst[i+3] = 255;
+            }
+        }
+        context.putImageData(target, 0, 0);
+    }
+
+    // Capture functionality
+    document.getElementById('snap').onclick = () => {
+        const link = document.createElement('a');
+        link.download = `capture-${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    };
+
+    const recBtn = document.getElementById('record');
+    recBtn.onclick = () => {
+        if (!isRecording) {
+            recordedChunks = [];
+            const stream = canvas.captureStream(30);
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+            mediaRecorder.ondataavailable = e => e.data.size > 0 && recordedChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'video-process.webm';
+                a.click();
+            };
+            mediaRecorder.start();
+            recBtn.innerText = "Stop & Save";
+            recBtn.classList.add('active');
+            isRecording = true;
+        } else {
+            mediaRecorder.stop();
+            recBtn.innerText = "Record Video";
+            recBtn.classList.remove('active');
+            isRecording = false;
+        }
+    };
+</script>
+</body>
+</html>
