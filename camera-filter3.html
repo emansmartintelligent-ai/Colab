@@ -3,34 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vision Grid Proportional</title>
+    <title>Vision Grid - Mirrored</title>
     <style>
         :root { --accent: #00d4ff; --bg: #0b0b0e; --panel: #16161a; }
         body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
-        
         .main-layout { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1400px; }
-        
         .viewport-section { flex: 2; min-width: 300px; display: flex; flex-direction: column; align-items: center; }
         .canvas-container { width: 100%; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border: 1px solid #333; }
         canvas { width: 100%; height: auto; display: block; }
-
         .controls { flex: 1; background: var(--panel); padding: 25px; border-radius: 12px; min-width: 280px; display: flex; flex-direction: column; gap: 15px; border: 1px solid #222; }
         .control-group { display: flex; flex-direction: column; gap: 5px; }
         label { font-size: 0.7rem; font-weight: 700; color: #777; text-transform: uppercase; }
-        
         button { cursor: pointer; padding: 12px; border: none; border-radius: 6px; font-weight: bold; transition: 0.2s; }
-        .btn-main { background: var(--accent); color: #000; }
+        .btn-main { background: var(--accent); color: #000; width: 100%; }
         .btn-snap { background: #4CAF50; color: white; margin-top: 10px; }
-        
         #v-hidden { display: none; }
-        .val-display { color: var(--accent); float: right; }
+        .val-display { color: var(--accent); float: right; font-family: monospace; }
+        .status-tag { font-size: 10px; color: #555; text-transform: uppercase; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <h1 style="letter-spacing:-1px">Vision <span style="color:var(--accent)">Grid</span></h1>
+    <h1 style="letter-spacing:-1px; margin-bottom: 5px;">Vision <span style="color:var(--accent)">Grid</span></h1>
+    <div class="status-tag">Mirror Mode: Active (Front Camera)</div>
 
-    <div class="main-layout">
+    <div class="main-layout" style="margin-top: 20px;">
         <div class="viewport-section">
             <div class="canvas-container">
                 <canvas id="outputCanvas"></canvas>
@@ -38,7 +35,7 @@
         </div>
 
         <div class="controls">
-            <button class="btn-main" id="init-btn">Access Front Camera</button>
+            <button class="btn-main" id="init-btn">Initialize Mirrored Feed</button>
             
             <div class="control-group" style="flex-direction:row; align-items:center; gap:10px; background:#1e1e24; padding:10px; border-radius:6px;">
                 <input type="checkbox" id="combine-mode" checked>
@@ -46,21 +43,21 @@
             </div>
 
             <div class="control-group">
-                <label>Quantization <span class="val-display" id="q-val">8</span></label>
-                <input type="range" id="quantize" min="2" max="32" value="8">
+                <label>Quantization Divisor <span class="val-display" id="q-val">1</span></label>
+                <input type="range" id="quantize" min="1" max="255" value="1">
             </div>
 
             <div class="control-group">
-                <label>Cosine Wave <span class="val-display" id="c-val">0</span></label>
+                <label>Cosine Distortion <span class="val-display" id="c-val">0</span></label>
                 <input type="range" id="cosine" min="0" max="100" value="0">
             </div>
 
             <div class="control-group">
-                <label>Sobel Edges <span class="val-display" id="s-val">0</span></label>
+                <label>Edge Detection <span class="val-display" id="s-val">0</span></label>
                 <input type="range" id="sobel" min="0" max="2" step="0.1" value="0">
             </div>
 
-            <button class="btn-snap" id="snap">Save Master Frame</button>
+            <button class="btn-snap" id="snap">Save Current Frame</button>
         </div>
     </div>
 
@@ -71,90 +68,107 @@
     const mainCanvas = document.getElementById('outputCanvas');
     const mainCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
     
-    // Hidden buffers
+    // Offscreen buffers for filter processing
     const buffers = { q: document.createElement('canvas'), c: document.createElement('canvas'), s: document.createElement('canvas') };
     const bCtx = { q: buffers.q.getContext('2d'), c: buffers.c.getContext('2d'), s: buffers.s.getContext('2d') };
 
     let streamW = 0;
     let streamH = 0;
 
+    // Apply global mirroring to all processing contexts
+    function setMirrored(ctx, w) {
+        ctx.setTransform(-1, 0, 0, 1, w, 0);
+    }
+
     document.getElementById('init-btn').addEventListener('click', async () => {
         try {
-            // "user" targets front camera; "environment" targets back
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
             video.srcObject = stream;
-            
             video.onloadedmetadata = () => {
-                // Determine true camera proportions
                 streamW = video.videoWidth;
                 streamH = video.videoHeight;
-
-                // Sync all canvases to camera's native resolution
+                
                 mainCanvas.width = streamW;
                 mainCanvas.height = streamH;
-                Object.values(buffers).forEach(b => { b.width = streamW; b.height = streamH; });
+                
+                Object.values(buffers).forEach(b => { 
+                    b.width = streamW; 
+                    b.height = streamH; 
+                });
 
                 document.getElementById('init-btn').style.display = 'none';
                 processFrame();
             };
-        } catch (err) { alert("Camera Access Error: " + err.message); }
+        } catch (err) { alert("Camera Error: " + err.message); }
     });
 
     function processFrame() {
-        const qVal = parseInt(document.getElementById('quantize').value);
+        const qDiv = parseInt(document.getElementById('quantize').value);
         const cVal = parseInt(document.getElementById('cosine').value);
         const sVal = parseFloat(document.getElementById('sobel').value);
 
-        document.getElementById('q-val').innerText = qVal;
+        document.getElementById('q-val').innerText = qDiv;
         document.getElementById('c-val').innerText = cVal;
         document.getElementById('s-val').innerText = sVal;
 
-        // 1. Process Offscreen
-        applyQuantize(qVal);
+        // Process filters
+        applyQuantize(qDiv);
         applyCosine(cVal);
         applySobel(sVal);
 
-        // 2. Composite
+        // Reset main transform to default before compositing
+        mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+        mainCtx.clearRect(0, 0, streamW, streamH);
+
         if (document.getElementById('combine-mode').checked) {
             const hw = streamW / 2;
             const hh = streamH / 2;
             
-            mainCtx.drawImage(video, 0, 0, hw, hh);       // Top Left
-            mainCtx.drawImage(buffers.q, hw, 0, hw, hh);  // Top Right
-            mainCtx.drawImage(buffers.c, 0, hh, hw, hh);  // Bottom Left
-            mainCtx.drawImage(buffers.s, hw, hh, hw, hh); // Bottom Right
+            // Draw Main Mirrored Video in Top Left
+            setMirrored(mainCtx, hw);
+            mainCtx.drawImage(video, 0, 0, hw, hh);
             
-            // Grid Divider
-            mainCtx.strokeStyle = "rgba(255,255,255,0.3)";
+            // Draw Pre-processed buffers (already mirrored)
+            mainCtx.setTransform(1, 0, 0, 1, 0, 0); // Reset for buffer drawing
+            mainCtx.drawImage(buffers.q, hw, 0, hw, hh);
+            mainCtx.drawImage(buffers.c, 0, hh, hw, hh);
+            mainCtx.drawImage(buffers.s, hw, hh, hw, hh);
+            
+            // Grid Divider Lines
+            mainCtx.strokeStyle = "rgba(0,212,255,0.4)";
             mainCtx.lineWidth = 2;
-            mainCtx.strokeRect(0, 0, streamW, streamH);
             mainCtx.beginPath();
             mainCtx.moveTo(hw, 0); mainCtx.lineTo(hw, streamH);
             mainCtx.moveTo(0, hh); mainCtx.lineTo(streamW, hh);
             mainCtx.stroke();
         } else {
+            setMirrored(mainCtx, streamW);
             mainCtx.drawImage(video, 0, 0, streamW, streamH);
         }
 
         requestAnimationFrame(processFrame);
     }
 
-    function applyQuantize(levels) {
+    function applyQuantize(divisor) {
+        setMirrored(bCtx.q, streamW);
         bCtx.q.drawImage(video, 0, 0, streamW, streamH);
+        if (divisor <= 1) return;
+        
         const frame = bCtx.q.getImageData(0, 0, streamW, streamH);
         const data = frame.data;
-        const step = 255 / (levels - 1);
         for (let i = 0; i < data.length; i += 4) {
-            data[i] = Math.round(data[i] / step) * step;
-            data[i+1] = Math.round(data[i+1] / step) * step;
-            data[i+2] = Math.round(data[i+2] / step) * step;
+            data[i] = Math.floor(data[i] / divisor) * divisor;
+            data[i+1] = Math.floor(data[i+1] / divisor) * divisor;
+            data[i+2] = Math.floor(data[i+2] / divisor) * divisor;
         }
         bCtx.q.putImageData(frame, 0, 0);
     }
 
     function applyCosine(intensity) {
+        setMirrored(bCtx.c, streamW);
         bCtx.c.drawImage(video, 0, 0, streamW, streamH);
         if (intensity === 0) return;
+        
         const frame = bCtx.c.getImageData(0, 0, streamW, streamH);
         const data = frame.data;
         for (let i = 0; i < data.length; i += 4) {
@@ -166,8 +180,10 @@
     }
 
     function applySobel(strength) {
+        setMirrored(bCtx.s, streamW);
         bCtx.s.drawImage(video, 0, 0, streamW, streamH);
         if (strength === 0) return;
+        
         const src = bCtx.s.getImageData(0, 0, streamW, streamH).data;
         const target = bCtx.s.createImageData(streamW, streamH);
         const dst = target.data;
@@ -175,7 +191,7 @@
             for (let x = 1; x < streamW - 1; x++) {
                 const i = (y * streamW + x) * 4;
                 const hX = -src[i-4-streamW*4] + src[i+4-streamW*4] - 2*src[i-4] + 2*src[i+4] - src[i-4+streamW*4] + src[i+4+streamW*4];
-                const hY = -src[i-4-streamW*4] - 2*src[i-streamW*4] - src[i+4-streamW*4] + src[i-4+streamW*4] + 2*src[i+streamW*4] + src[i+4+streamW*4];
+                const hY = -src[i-4-streamW*4] - 2*src[i-streamW*4] - src[i+4-streamW*4] + src[i-4+streamW*4] + 2*src[i+W*4] + src[i+4+streamW*4];
                 const edge = Math.sqrt(hX*hX + hY*hY) * strength;
                 dst[i] = edge; dst[i+1] = edge; dst[i+2] = edge; dst[i+3] = 255;
             }
@@ -185,7 +201,7 @@
 
     document.getElementById('snap').onclick = () => {
         const link = document.createElement('a');
-        link.download = `capture-${Date.now()}.png`;
+        link.download = `mirrored-grid-${Date.now()}.png`;
         link.href = mainCanvas.toDataURL();
         link.click();
     };
