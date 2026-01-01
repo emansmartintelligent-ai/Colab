@@ -2,45 +2,46 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>YNS Universal Transcoder</title>
+    <title>YNS Logic - View Mode Toggle</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #050505; color: #00ff41; padding: 20px; }
         .container { max-width: 1200px; margin: auto; background: #111; padding: 25px; border-radius: 12px; border: 1px solid #00ff41; }
-        .controls { background: #1a1a1a; padding: 15px; border-radius: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end; margin-bottom: 20px; border: 1px solid #333; }
+        .controls { background: #1a1a1a; padding: 15px; border-radius: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; align-items: end; margin-bottom: 20px; border: 1px solid #333; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
         canvas, video { width: 100%; border: 1px solid #00ff41; border-radius: 4px; background: #000; image-rendering: pixelated; transform: scaleX(-1); }
-        .data-panel { margin-top: 15px; background: #000; padding: 10px; font-family: 'Courier New', monospace; height: 100px; font-size: 11px; overflow: hidden; border: 1px solid #00ff41; }
+        .data-panel { margin-top: 15px; background: #000; padding: 10px; font-family: 'Courier New', monospace; height: 80px; font-size: 11px; overflow: hidden; border: 1px solid #00ff41; }
         .status-gap { color: #ff3b3b; font-weight: bold; }
         button { background: #00ff41; color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; border-radius: 4px; }
-        select, label { color: #00ff41; display: block; margin-bottom: 5px; }
+        select, label { color: #00ff41; display: block; margin-bottom: 5px; font-weight: bold; }
         select { background: #222; border: 1px solid #00ff41; padding: 8px; width: 100%; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>YNS Universal Base Transcoder (Mirrored Feed)</h2>
+    <h2>YNS Transcoder: View Mode Isolation</h2>
     
     <div class="controls">
         <div>
-            <button id="startBtn" style="width:100%">Initialize YNS Sensor</button>
+            <button id="startBtn" style="width:100%">Initialize Sensor</button>
+        </div>
+        <div>
+            <label>View Mode:</label>
+            <select id="viewMode">
+                <option value="full">Full Processed Image</option>
+                <option value="deadOnly">Dead Zones Only (Black Canvas)</option>
+                <option value="dataOnly">Non-Dead Zones Only</option>
+            </select>
         </div>
         <div>
             <label>Select Base:</label>
             <select id="baseSelect">
-                <option value="adaptive">Adaptive (Auto-Sense)</option>
                 <option value="2">Base-2</option>
-                <option value="3">Base-3</option>
-                <option value="4">Base-4</option>
-                <option value="5">Base-5</option>
                 <option value="7">Base-7</option>
                 <option value="12">Base-12</option>
-                <option value="16">Base-16</option>
                 <option value="20" selected>Base-20 (Standard)</option>
-                <option value="31">Base-31</option>
                 <option value="40">Base-40</option>
                 <option value="60">Base-60</option>
-                <option value="70">Base-70</option>
                 <option value="91">Base-91</option>
                 <option value="120">Base-120</option>
             </select>
@@ -53,21 +54,23 @@
     <div class="grid">
         <video id="video" autoplay muted playsinline style="display:none;"></video>
         <div>
-            <h4 style="color:#fff; text-align:center;">Mirrored Input</h4>
+            <h4 style="color:#fff; text-align:center;">Raw Mirrored Input</h4>
             <canvas id="origCanvas"></canvas>
         </div>
         <div>
-            <h4 style="color:#fff; text-align:center;">YNS Logic Output</h4>
+            <h4 style="color:#fff; text-align:center;">YNS Logic Mode: <span id="modeDisplay">Full</span></h4>
             <canvas id="ynsCanvas"></canvas>
         </div>
     </div>
 
-    <div class="data-panel" id="bitstream">Bitstream: Waiting for Initialization...</div>
+    <div class="data-panel" id="bitstream">Bitstream Output Ready...</div>
 </div>
 
 <script>
 const video = document.getElementById('video');
 const baseSelect = document.getElementById('baseSelect');
+const viewMode = document.getElementById('viewMode');
+const modeDisplay = document.getElementById('modeDisplay');
 const bitstream = document.getElementById('bitstream');
 const startBtn = document.getElementById('startBtn');
 const origCanvas = document.getElementById('origCanvas');
@@ -82,22 +85,15 @@ startBtn.addEventListener('click', async () => {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
         video.onloadedmetadata = () => { video.play(); isStreaming = true; processFrame(); };
-    } catch (err) { console.error("Permission Denied", err); }
+    } catch (err) { console.error("Camera access failed", err); }
 });
-
-function getBestYNS(val, mode) {
-    const bases = mode === 'adaptive' ? [2, 12, 20, 40, 60, 120] : [parseInt(mode)];
-    for (let b of bases) {
-        let landmark = Math.round(val / b) * b;
-        let offset = val - landmark;
-        if (Math.abs(offset) <= 5) return { landmark, offset, base: b };
-    }
-    return null;
-}
 
 function processFrame() {
     if (!isStreaming) return;
-    const mode = baseSelect.value;
+    const base = parseInt(baseSelect.value);
+    const mode = viewMode.value;
+    modeDisplay.innerText = viewMode.options[viewMode.selectedIndex].text;
+
     const w = origCanvas.width = ynsCanvas.width = 320; 
     const h = origCanvas.height = ynsCanvas.height = 240;
 
@@ -108,18 +104,48 @@ function processFrame() {
 
     for (let i = 0; i < frame.data.length; i += 4) {
         let gray = (frame.data[i] + frame.data[i+1] + frame.data[i+2]) / 3;
-        let res = getBestYNS(gray, mode);
+        let landmark = Math.round(gray / base) * base;
+        let offset = gray - landmark;
+        let absOffset = Math.abs(offset);
+        let isDeadZone = absOffset > 5;
 
-        if (res) {
-            outFrame.data[i] = outFrame.data[i+1] = outFrame.data[i+2] = gray;
-            outFrame.data[i+3] = 255;
-            if (i % 4000 === 0) {
-                let score = Math.min(Math.round(res.landmark/res.base), 15).toString(2).padStart(4,'0');
-                streamOut += `${score}${res.offset >= 0 ? "0" : "1"}${Math.abs(res.offset).toString(2).padStart(3,'0')} `;
+        // Visual Logic based on View Mode
+        if (mode === "deadOnly") {
+            if (isDeadZone) {
+                outFrame.data[i] = 255; // Red for dead zones
+                outFrame.data[i+1] = 0;
+                outFrame.data[i+2] = 0;
+                outFrame.data[i+3] = 255;
+            } else {
+                // Background stays black (0,0,0,255)
+                outFrame.data[i+3] = 255;
             }
-        } else {
-            outFrame.data[i] = 255; outFrame.data[i+1] = 0; outFrame.data[i+2] = 0; outFrame.data[i+3] = 255;
-            if (i % 4000 === 0) streamOut += "<span class='status-gap'>[GAP]</span> ";
+        } else if (mode === "dataOnly") {
+            if (!isDeadZone) {
+                outFrame.data[i] = outFrame.data[i+1] = outFrame.data[i+2] = gray;
+                outFrame.data[i+3] = 255;
+            } else {
+                // Dead zone stays black
+                outFrame.data[i+3] = 255;
+            }
+        } else { // Full Processed Mode
+            if (!isDeadZone) {
+                outFrame.data[i] = outFrame.data[i+1] = outFrame.data[i+2] = gray;
+            } else {
+                outFrame.data[i] = 255; // Red
+                outFrame.data[i+1] = outFrame.data[i+2] = 0;
+            }
+            outFrame.data[i+3] = 255;
+        }
+
+        // Sample bitstream for non-dead zones
+        if (i % 5000 === 0) {
+            if (!isDeadZone) {
+                let score = Math.min(Math.round(landmark/base), 15).toString(2).padStart(4,'0');
+                streamOut += `${score}${offset >= 0 ? "0" : "1"}${absOffset.toString(2).padStart(3,'0')} `;
+            } else {
+                streamOut += "<span class='status-gap'>[GAP]</span> ";
+            }
         }
     }
     ctxYns.putImageData(outFrame, 0, 0);
@@ -129,7 +155,7 @@ function processFrame() {
 
 function downloadFrame() {
     const link = document.createElement('a');
-    link.download = `YNS_Universal_Base${baseSelect.value}.png`;
+    link.download = `YNS_View_${viewMode.value}_Base${baseSelect.value}.png`;
     link.href = ynsCanvas.toDataURL();
     link.click();
 }
