@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nigeria Fiscal & Landmass Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #020617;
+            --card-bg: #0f172a;
+            --text-main: #f8fafc;
+            --text-dim: #64748b;
+            --fire-red: #dc2626;
+            --gold: #f59e0b;
+            --accent-blue: #38bdf8;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px; margin: 0;
+        }
+
+        .header { text-align: center; margin-bottom: 25px; }
+        
+        #svg-canvas {
+            background: #000;
+            padding: 25px;
+            border-radius: 30px;
+            border: 1px solid #1e293b;
+            width: 100%;
+            max-width: 900px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            margin-bottom: 25px;
+        }
+
+        .pills-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            max-width: 1100px;
+            padding: 20px;
+            background: var(--card-bg);
+            border-radius: 20px;
+        }
+
+        .pill {
+            background: #1e293b;
+            border: 1px solid transparent;
+            color: var(--text-dim);
+            padding: 6px 14px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pill.active {
+            background: var(--fire-red);
+            color: white;
+            box-shadow: 0 0 15px rgba(220, 38, 38, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .fire-highlight {
+            fill: url(#fireGradient) !important;
+            filter: url(#fireGlow);
+            stroke: var(--gold) !important;
+            stroke-width: 3px;
+        }
+
+        path { cursor: pointer; transition: 0.3s; }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            justify-content: center; align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+        }
+
+        .modal-content {
+            background: #fff; color: #020617;
+            padding: 35px; border-radius: 24px;
+            width: 90%; max-width: 500px;
+            text-align: center;
+        }
+
+        .stat-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 12px;
+            text-align: left;
+        }
+
+        .stat-label { font-size: 0.65rem; color: #64748b; font-weight: 700; text-transform: uppercase; }
+        .stat-value { font-size: 0.95rem; font-weight: 800; color: #0f172a; }
+        .ratio-tag { font-size: 0.75rem; color: var(--fire-red); font-weight: 700; }
+        .area-tag { font-size: 1.1rem; font-weight: 800; color: #1e40af; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1 style="color: var(--accent-blue);">Nigeria Fiscal & Landmass Intelligence</h1>
+        <input type="file" id="file-input" accept=".svg" style="color: var(--text-dim); font-size: 0.8rem;">
+    </div>
+
+    <div id="svg-canvas">
+        <p style="text-align: center; color: #334155;">Upload Map SVG to visualize Revenue & Landmass...</p>
+    </div>
+
+    <div class="pills-container" id="pill-box"></div>
+
+    <svg width="0" height="0" style="position:absolute">
+        <defs>
+            <radialGradient id="fireGradient">
+                <stop offset="0%" stop-color="#fbbf24" />
+                <stop offset="50%" stop-color="#ea580c" />
+                <stop offset="100%" stop-color="#dc2626" />
+            </radialGradient>
+            <filter id="fireGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="6" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+        </defs>
+    </svg>
+
+    <div id="modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="m-name" style="margin: 0;">State</h2>
+            <div id="m-code" style="color: #64748b; margin-bottom: 20px;">NG-XX</div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <div style="flex: 1; background: #0f172a; color: white; padding: 12px; border-radius: 12px;">
+                    <div class="stat-label" style="color: #94a3b8;">IGR (2024 FY)</div>
+                    <div class="stat-value" style="color: white; font-size: 1.2rem;" id="m-igr">N0.00</div>
+                </div>
+                <div style="flex: 1; background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 12px;">
+                    <div class="stat-label" style="color: #0369a1;">Landmass (km²)</div>
+                    <div class="area-tag" id="m-area">0,000</div>
+                </div>
+            </div>
+
+            <div class="stat-group">
+                <div class="stat-box">
+                    <div class="stat-label">VAT (Q1 2025)</div>
+                    <div id="m-vat-q1" class="stat-value">-</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">VAT Contrib (Oct 25)</div>
+                    <div id="m-vat-cont" class="stat-value">-</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">VAT Received (Oct 25)</div>
+                    <div id="m-vat-rec" class="stat-value">-</div>
+                </div>
+                <div class="stat-box" style="border: 1px solid #e2e8f0;">
+                    <div class="stat-label">Return Ratio</div>
+                    <div id="m-ratio" class="ratio-tag">-</div>
+                </div>
+            </div>
+
+            <button onclick="document.getElementById('modal').style.display='none'" 
+                    style="margin-top:25px; padding:12px; width:100%; border-radius:12px; background:#020617; color:white; cursor:pointer; border:none;">
+                Close Data View
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Financial and Landmass data integration
+        const financialData = {
+            "NGAB": { name: "Abia", igr: "N40.0B", vQ1: "N2.92bn", vCont: "N1.33bn", vRec: "N6.89bn", ratio: "518.05%", area: "6,320" },
+            "NGAD": { name: "Adamawa", igr: "N20.3B", vQ1: "N9.12bn", vCont: "N3.76bn", vRec: "N7.45bn", ratio: "198.14%", area: "36,917" },
+            "NGAK": { name: "Akwa Ibom", igr: "N75.8B", vQ1: "N16.08bn", vCont: "N1.42bn", vRec: "N7.69bn", ratio: "541.55%", area: "7,081" },
+            "NGAN": { name: "Anambra", igr: "N42.7B", vQ1: "N10.73bn", vCont: "N5.75bn", vRec: "N8.45bn", ratio: "146.96%", area: "4,844" },
+            "NGBA": { name: "Bauchi", igr: "N32.4B", vQ1: "N6.30bn", vCont: "N1.46bn", vRec: "N8.22bn", ratio: "563.01%", area: "45,893" },
+            "NGBE": { name: "Benue", igr: "N20.4B", vQ1: "N12.36bn", vCont: "N709.14m", vRec: "N7.81bn", ratio: "1,101.33%", area: "34,059" },
+            "NGBO": { name: "Borno", igr: "N27.8B", vQ1: "N7.87bn", vCont: "N2.02bn", vRec: "N7.93bn", ratio: "392.57%", area: "70,898" },
+            "NGBY": { name: "Bayelsa", igr: "N64.0B", vQ1: "N27.26bn", vCont: "N13.11bn", vRec: "N7.62bn", ratio: "58.12%", area: "10,773" },
+            "NGCR": { name: "Cross River", igr: "N47.0B", vQ1: "N2.65bn", vCont: "N446.02m", vRec: "N7.73bn", ratio: "1,526.82%", area: "22,590" },
+            "NGDE": { name: "Delta", igr: "N157.8B", vQ1: "N20.04bn", vCont: "N13.48bn", vRec: "N9.41bn", ratio: "69.81%", area: "17,698" },
+            "NGEB": { name: "Ebonyi", igr: "N13.2B", vQ1: "N7.43bn", vCont: "N2.50bn", vRec: "N6.56bn", ratio: "262.40%", area: "5,670" },
+            "NGED": { name: "Edo", igr: "N91.2B", vQ1: "N20.73bn", vCont: "N9.75bn", vRec: "N8.38bn", ratio: "85.95%", area: "19,559" },
+            "NGEK": { name: "Ekiti", igr: "N35.2B", vQ1: "N10.17bn", vCont: "N5.99bn", vRec: "N7.18bn", ratio: "119.87%", area: "6,353" },
+            "NGEN": { name: "Enugu", igr: "N180.5B", vQ1: "N4.96bn", vCont: "N2.44bn", vRec: "N7.34bn", ratio: "300.82%", area: "7,161" },
+            "NGFC": { name: "FCT", igr: "N282.4B", vQ1: "No Data", vCont: "No Data", vRec: "No Data", ratio: "-", area: "7,315" },
+            "NGGO": { name: "Gombe", igr: "N20.7B", vQ1: "N4.61bn", vCont: "N2.38bn", vRec: "N6.68bn", ratio: "280.67%", area: "18,768" },
+            "NGIM": { name: "Imo", igr: "N25.3B", vQ1: "N2.34bn", vCont: "N1.24bn", vRec: "N7.67bn", ratio: "618.55%", area: "5,530" },
+            "NGJI": { name: "Jigawa", igr: "N62.6B", vQ1: "N11.22bn", vCont: "N3.09bn", vRec: "N8.22bn", ratio: "266.02%", area: "23,154" },
+            "NGKD": { name: "Kaduna", igr: "N71.6B", vQ1: "N8.12bn", vCont: "N11.87bn", vRec: "N10.62bn", ratio: "89.47%", area: "46,053" },
+            "NGKE": { name: "Kebbi", igr: "N17.0B", vQ1: "N5.13bn", vCont: "N2.32bn", vRec: "N7.31bn", ratio: "315.09%", area: "36,800" },
+            "NGKN": { name: "Kano", igr: "N74.8B", vQ1: "N22.97bn", vCont: "N10.07bn", vRec: "N12.79bn", ratio: "127.01%", area: "20,131" },
+            "NGKO": { name: "Kogi", igr: "N32.0B", vQ1: "N7.33bn", vCont: "N3.33bn", vRec: "N7.47bn", ratio: "224.32%", area: "29,833" },
+            "NGKT": { name: "Katsina", igr: "N39.2B", vQ1: "N5.96bn", vCont: "N5.11bn", vRec: "N9.53bn", ratio: "186.50%", area: "24,192" },
+            "NGKW": { name: "Kwara", igr: "N71.2B", vQ1: "N14.43bn", vCont: "N2.96bn", vRec: "N6.77bn", ratio: "228.72%", area: "36,825" },
+            "NGLA": { name: "Lagos", igr: "N1.3T", vQ1: "N819.62bn", vCont: "N286.24bn", vRec: "N48.96bn", ratio: "17.10%", area: "3,577" },
+            "NGNA": { name: "Nasarawa", igr: "N25.5B", vQ1: "N7.05bn", vCont: "N3.82bn", vRec: "N6.51bn", ratio: "170.42%", area: "27,117" },
+            "NGNI": { name: "Niger", igr: "N34.7B", vQ1: "N5.97bn", vCont: "N6.22bn", vRec: "N8.34bn", ratio: "134.08%", area: "76,363" },
+            "NGOG": { name: "Ogun", igr: "N194.9B", vQ1: "N7.20bn", vCont: "N5.20bn", vRec: "N8.05bn", ratio: "154.81%", area: "16,762" },
+            "NGON": { name: "Ondo", igr: "N48.6B", vQ1: "N7.14bn", vCont: "N2.87bn", vRec: "N7.53bn", ratio: "262.37%", area: "17,500" },
+            "NGOS": { name: "Osun", igr: "N54.8B", vQ1: "N5.95bn", vCont: "N1.07bn", vRec: "N7.28bn", ratio: "680.37%", area: "9,251" },
+            "NGOY": { name: "Oyo", igr: "N65.3B", vQ1: "N79.78bn", vCont: "N31.64bn", vRec: "N12.89bn", ratio: "40.74%", area: "28,454" },
+            "NGPL": { name: "Plateau", igr: "N31.1B", vQ1: "N5.55bn", vCont: "N3.47bn", vRec: "N7.42bn", ratio: "213.83%", area: "30,913" },
+            "NGRI": { name: "Rivers", igr: "N317.3B", vQ1: "N278.23bn", vCont: "N42.27bn", vRec: "N13.99bn", ratio: "33.11%", area: "11,077" },
+            "NGSO": { name: "Sokoto", igr: "N20.8B", vQ1: "N10.88bn", vCont: "N4.32bn", vRec: "N7.91bn", ratio: "183.10%", area: "25,973" },
+            "NGTA": { name: "Taraba", igr: "N17.5B", vQ1: "N2.33bn", vCont: "N7.85bn", vRec: "N7.36bn", ratio: "93.76%", area: "54,473" },
+            "NGYO": { name: "Yobe", igr: "N11.1B", vQ1: "N5.81bn", vCont: "N1.47bn", vRec: "N6.53bn", ratio: "444.22%", area: "45,502" },
+            "NGZA": { name: "Zamfara", igr: "N25.5B", vQ1: "N3.77bn", vCont: "N5.04bn", vRec: "N7.69bn", ratio: "152.58%", area: "39,762" }
+        };
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const scale = [261.63, 311.13, 349.23, 392.00, 466.16]; 
+
+        function playMelody() {
+            const now = audioCtx.currentTime;
+            for(let i=0; i<3; i++) {
+                const osc = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(scale[Math.floor(Math.random()*scale.length)], now + (i*0.12));
+                g.gain.setValueAtTime(0, now + (i*0.12));
+                g.gain.linearRampToValueAtTime(0.1, now + (i*0.12) + 0.05);
+                g.gain.exponentialRampToValueAtTime(0.001, now + (i*0.12) + 0.4);
+                osc.connect(g).connect(audioCtx.destination);
+                osc.start(now + (i*0.12)); osc.stop(now + (i*0.12) + 0.5);
+            }
+        }
+
+        function init() {
+            const pb = document.getElementById('pill-box');
+            Object.entries(financialData).forEach(([id, d]) => {
+                const btn = document.createElement('button');
+                btn.className = 'pill'; btn.id = `pill-${id}`; btn.textContent = d.name;
+                btn.onclick = () => selectState(id, false);
+                pb.appendChild(btn);
+            });
+        }
+
+        document.getElementById('file-input').onchange = (e) => {
+            const r = new FileReader();
+            r.onload = (ev) => {
+                document.getElementById('svg-canvas').innerHTML = ev.target.result;
+                const svg = document.querySelector('svg');
+                svg.style.width = '100%'; svg.style.height = 'auto';
+                svg.onclick = (event) => {
+                    const t = event.target.closest('[id]');
+                    if(t && financialData[t.id]) selectState(t.id, true);
+                }
+            };
+            r.readAsText(e.target.files[0]);
+        }
+
+        function selectState(id, showM) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            playMelody();
+            document.querySelectorAll('.fire-highlight, .pill.active').forEach(e => e.classList.remove('fire-highlight', 'active'));
+            
+            const stateEl = document.getElementById(id);
+            const pillEl = document.getElementById(`pill-${id}`);
+            if(stateEl) stateEl.classList.add('fire-highlight');
+            if(pillEl) {
+                pillEl.classList.add('active');
+                pillEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }
+
+            if(showM) {
+                const d = financialData[id];
+                document.getElementById('m-name').textContent = d.name;
+                document.getElementById('m-code').textContent = id;
+                document.getElementById('m-igr').textContent = d.igr;
+                document.getElementById('m-area').textContent = d.area;
+                document.getElementById('m-vat-q1').textContent = d.vQ1;
+                document.getElementById('m-vat-cont').textContent = d.vCont;
+                document.getElementById('m-vat-rec').textContent = d.vRec;
+                document.getElementById('m-ratio').textContent = d.ratio;
+                document.getElementById('modal').style.display = 'flex';
+            }
+        }
+        init();
+    </script>
+</body>
+</html>
