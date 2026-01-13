@@ -79,13 +79,13 @@
             border: none;
         }
 
-        /* The Install Button */
+        /* The Install Button - Amber color to stand out */
         #installBtn {
             grid-column: span 2;
-            background: #fbbf24; /* Amber color to stand out */
+            background: #fbbf24; 
             color: black;
             font-weight: bold;
-            display: none; /* Hidden until browser allows install */
+            display: none; /* Hidden by default until browser says it's ready */
         }
 
         .full-width { grid-column: span 2; }
@@ -127,11 +127,13 @@
         let isStreaming = false;
         let deferredPrompt;
 
-        // --- PWA INSTALLATION LOGIC ---
+        // --- 1. PWA INSTALLATION LOGIC ---
+        // This listens for the browser to say "I'm ready to install!"
         window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('Install prompt fired');
             e.preventDefault();
             deferredPrompt = e;
-            installBtn.style.display = 'flex'; // Show button when installable
+            installBtn.style.display = 'flex'; // Show the button
         });
 
         installBtn.addEventListener('click', async () => {
@@ -145,7 +147,7 @@
             }
         });
 
-        // --- SOBEL FILTER LOGIC ---
+        // --- 2. SOBEL FILTER LOGIC ---
         function applySobel() {
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
@@ -157,8 +159,6 @@
             for (let y = 1; y < h - 1; y++) {
                 for (let x = 1; x < w - 1; x++) {
                     const i = (y * w + x) * 4;
-                    
-                    // Simple Edge Approximation (Gx and Gy)
                     const pixelLeft = (data[i - 4] + data[i - 3] + data[i - 2]) / 3;
                     const pixelRight = (data[i + 4] + data[i + 5] + data[i + 6]) / 3;
                     const pixelUp = (data[i - w * 4] + data[i - w * 4 + 1] + data[i - w * 4 + 2]) / 3;
@@ -173,7 +173,7 @@
             ctx.putImageData(output, 0, 0);
         }
 
-        // --- CAMERA LOGIC ---
+        // --- 3. CAMERA LOGIC ---
         frontCamBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -198,9 +198,9 @@
             requestAnimationFrame(renderVideo);
         }
 
-        // --- UPLOAD LOGIC ---
+        // --- 4. UPLOAD LOGIC ---
         upload.addEventListener('change', (e) => {
-            isStreaming = false; // Stop camera if active
+            isStreaming = false; 
             const reader = new FileReader();
             reader.onload = (event) => {
                 const img = new Image();
@@ -215,7 +215,7 @@
             reader.readAsDataURL(e.target.files[0]);
         });
 
-        // --- DOWNLOAD LOGIC ---
+        // --- 5. DOWNLOAD LOGIC ---
         downloadBtn.addEventListener('click', () => {
             const link = document.createElement('a');
             link.download = 'sobel-vision-capture.png';
@@ -223,12 +223,16 @@
             link.click();
         });
 
-        // --- SERVICE WORKER REGISTRATION ---
+        // --- 6. CRITICAL: SERVICE WORKER REGISTRATION ---
+        // This is what makes it a PWA. It MUST be inside script tags.
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js');
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('SW Registered!', reg))
+                    .catch(err => console.log('SW Failed', err));
             });
         }
     </script>
 </body>
 </html>
+
