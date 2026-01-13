@@ -3,42 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SobelVision - Edge Detection</title>
+    <title>SobelVision - Edge Detection PWA</title>
     
     <meta name="theme-color" content="#14b8a6">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SobelVision">
+    
     <link rel="manifest" href="manifest.webmanifest">
     
     <link rel="icon" type="image/png" href="https://olubowale.lovable.app/pwa-192x192.png">
     <link rel="apple-touch-icon" href="https://olubowale.lovable.app/pwa-192x192.png">
 
     <style>
-        :root { --primary: #14b8a6; --bg: #1a1a1a; }
-        body { font-family: sans-serif; background: var(--bg); color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
-        .container { max-width: 500px; width: 100%; text-align: center; }
-        canvas, video { width: 100%; border-radius: 12px; background: #000; margin-top: 20px; box-shadow: 0 0 20px rgba(20, 184, 166, 0.2); }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
-        button, label { background: #262626; border: 1px solid var(--primary); color: white; padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-size: 14px; }
-        button:hover { background: var(--primary); color: #000; }
+        :root { 
+            --primary: #14b8a6; 
+            --background: #10141a; 
+            --card: #1a1f26; 
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--background); 
+            color: white; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px;
+        }
+        .app-container { max-width: 480px; width: 100%; text-align: center; }
+        
+        h1 { font-size: 1.5rem; margin-bottom: 5px; }
+        .accent { color: var(--primary); }
+        
+        canvas, video { 
+            width: 100%; 
+            border-radius: 12px; 
+            background: #000; 
+            margin-top: 15px; 
+            border: 1px solid rgba(20, 184, 166, 0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .controls { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 12px; 
+            margin-top: 20px; 
+        }
+
+        button, .upload-label { 
+            background: var(--card); 
+            border: 1px solid rgba(20, 184, 166, 0.4); 
+            color: white; 
+            padding: 12px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:hover, .upload-label:hover { 
+            border-color: var(--primary);
+            background: rgba(20, 184, 166, 0.1);
+        }
+
+        .primary-btn { 
+            background: var(--primary); 
+            color: #10141a; 
+            font-weight: bold; 
+            border: none;
+        }
+
+        /* The Install Button */
+        #installBtn {
+            grid-column: span 2;
+            background: #fbbf24; /* Amber color to stand out */
+            color: black;
+            font-weight: bold;
+            display: none; /* Hidden until browser allows install */
+        }
+
+        .full-width { grid-column: span 2; }
         input[type="file"] { display: none; }
-        .full-width { grid-column: span 2; background: var(--primary); color: #000; font-weight: bold; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>Sobel<span style="color:var(--primary)">Vision</span></h1>
-        
-        <video id="video" autoplay playsinline style="display:none"></video>
+    <div class="app-container">
+        <h1>Sobel<span class="accent">Vision</span></h1>
+        <p style="color: #94a3b8; font-size: 0.8rem;">Image Edge Detection PWA</p>
+
+        <video id="video" autoplay playsinline class="hidden"></video>
         <canvas id="canvas"></canvas>
 
         <div class="controls">
-            <label for="upload" class="full-width">Step 1: Upload Image</label>
+            <button id="installBtn">✨ Install App to Home Screen</button>
+
+            <label for="upload" class="upload-label full-width">
+                Upload Image
+            </label>
             <input type="file" id="upload" accept="image/*">
-            
-            <button id="frontCam">Front Camera</button>
-            <button id="downloadBtn">Download Icon</button>
+
+            <button id="frontCamBtn" class="primary-btn">Live Front Camera</button>
+            <button id="downloadBtn">Download Result</button>
         </div>
     </div>
 
@@ -48,64 +121,88 @@
         const video = document.getElementById('video');
         const upload = document.getElementById('upload');
         const downloadBtn = document.getElementById('downloadBtn');
-        const frontCamBtn = document.getElementById('frontCam');
+        const frontCamBtn = document.getElementById('frontCamBtn');
+        const installBtn = document.getElementById('installBtn');
 
         let isStreaming = false;
+        let deferredPrompt;
 
-        [span_2](start_span)// Sobel Edge Detection Algorithm[span_2](end_span)
+        // --- PWA INSTALLATION LOGIC ---
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'flex'; // Show button when installable
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.style.display = 'none';
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        // --- SOBEL FILTER LOGIC ---
         function applySobel() {
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
-            const width = imageData.width;
-            const height = imageData.height;
-            const output = ctx.createImageData(width, height);
+            const w = canvas.width;
+            const h = canvas.height;
+            const output = ctx.createImageData(w, h);
             const outData = output.data;
 
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    const idx = (y * width + x) * 4;
+            for (let y = 1; y < h - 1; y++) {
+                for (let x = 1; x < w - 1; x++) {
+                    const i = (y * w + x) * 4;
                     
-                    // Simple Sobel approximation
-                    const h = (data[idx - 4] * -1) + (data[idx + 4] * 1);
-                    const v = (data[idx - (width * 4)] * -1) + (data[idx + (width * 4)] * 1);
-                    const mag = Math.abs(h) + Math.abs(v);
+                    // Simple Edge Approximation (Gx and Gy)
+                    const pixelLeft = (data[i - 4] + data[i - 3] + data[i - 2]) / 3;
+                    const pixelRight = (data[i + 4] + data[i + 5] + data[i + 6]) / 3;
+                    const pixelUp = (data[i - w * 4] + data[i - w * 4 + 1] + data[i - w * 4 + 2]) / 3;
+                    const pixelDown = (data[i + w * 4] + data[i + w * 4 + 1] + data[i + w * 4 + 2]) / 3;
 
-                    outData[idx] = outData[idx+1] = outData[idx+2] = mag;
-                    outData[idx+3] = 255;
+                    const mag = Math.abs(pixelRight - pixelLeft) + Math.abs(pixelDown - pixelUp);
+
+                    outData[i] = outData[i + 1] = outData[i + 2] = mag;
+                    outData[i + 3] = 255;
                 }
             }
             ctx.putImageData(output, 0, 0);
         }
 
-        [span_3](start_span)// Camera Logic[span_3](end_span)
+        // --- CAMERA LOGIC ---
         frontCamBtn.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: "user" } 
                 });
                 video.srcObject = stream;
-                video.style.display = "none";
                 isStreaming = true;
-                processFrame();
+                requestAnimationFrame(renderVideo);
             } catch (err) {
-                alert("Camera Error: " + err.message);
+                alert("Camera Access Required for Live Feed.");
             }
         });
 
-        function processFrame() {
+        function renderVideo() {
             if (!isStreaming) return;
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
-            applySobel();
-            requestAnimationFrame(processFrame);
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                applySobel();
+            }
+            requestAnimationFrame(renderVideo);
         }
 
-        // Upload Logic
+        // --- UPLOAD LOGIC ---
         upload.addEventListener('change', (e) => {
-            isStreaming = false;
+            isStreaming = false; // Stop camera if active
             const reader = new FileReader();
-            reader.onload = (f) => {
+            reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
                     canvas.width = img.width;
@@ -113,28 +210,25 @@
                     ctx.drawImage(img, 0, 0);
                     applySobel();
                 };
-                img.src = f.target.result;
+                img.src = event.target.result;
             };
             reader.readAsDataURL(e.target.files[0]);
         });
 
-        // Download logic
+        // --- DOWNLOAD LOGIC ---
         downloadBtn.addEventListener('click', () => {
             const link = document.createElement('a');
-            link.download = 'sobel-edge.png';
+            link.download = 'sobel-vision-capture.png';
             link.href = canvas.toDataURL();
             link.click();
         });
 
-        [span_4](start_span)// CRITICAL: Service Worker Registration for PWA Install[span_4](end_span)
+        // --- SERVICE WORKER REGISTRATION ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('SW Registered'))
-                    .catch(err => console.log('SW Failed', err));
+                navigator.serviceWorker.register('sw.js');
             });
         }
     </script>
 </body>
 </html>
-
